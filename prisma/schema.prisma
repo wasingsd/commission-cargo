@@ -1,16 +1,68 @@
 // prisma/schema.prisma
-datasource db { provider = "postgresql"; url = env("DATABASE_URL") }
-generator client { provider = "prisma-client-js" }
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
 
-enum Role { ADMIN MANAGER STAFF SALE }
-enum RateCardStatus { DRAFT ACTIVE ARCHIVED }
-enum ProductType { GENERAL TISI FDA SPECIAL } // ทั่วไป มอก อย พิเศษ
-enum Transport { TRUCK SHIP }                // รถ เรือ
-enum Unit { CBM KG }
-enum CostMode { AUTO MANUAL }
-enum CostRule { CBM KG MANUAL NONE }
-enum CommissionMethod { DIFF ONEPCT NONE }
-enum AuditAction { CREATE UPDATE DELETE RECALC ACTIVATE }
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  STAFF
+  SALE
+}
+
+enum RateCardStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum ProductType {
+  GENERAL
+  TISI
+  FDA
+  SPECIAL
+}
+
+enum Transport {
+  TRUCK
+  SHIP
+}
+
+enum Unit {
+  CBM
+  KG
+}
+
+enum CostMode {
+  AUTO
+  MANUAL
+}
+
+enum CostRule {
+  CBM
+  KG
+  MANUAL
+  NONE
+}
+
+enum CommissionMethod {
+  DIFF
+  ONEPCT
+  NONE
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  RECALC
+  ACTIVATE
+}
 
 model User {
   id        String   @id @default(cuid())
@@ -21,17 +73,6 @@ model User {
   updatedAt DateTime @updatedAt
 
   auditLogs AuditLog[]
-  // Added relations that were missing in user's snippet but required for compilation if referred back
-  // The user's snippet shows `createdBy User?` in RateCard, so we need the reverse relation or just let Prisma infer/ignore if not explicit side.
-  // Prisma usually requires the other side for the relation, or the attribute `@relation` properly set.
-  // In user's snippet:
-  // RateCard has `createdBy User? @relation(fields: [createdById], references: [id])`
-  // So User needs `rateCards RateCard[]` if we want to navigate from User to RateCards, or we can omit it if not needed.
-  // However, strict Prisma usually likes the back relation. The user text didn't show it but "Shipment" has "salesperson" relation etc.
-  // Let's rely on what the user provided. If Prisma complains about missing back-relations, I will add them.
-  // Actually, looking at the provided snippet:
-  // `User` has `auditLogs AuditLog[]`
-  // It doesn't explicitly list `rateCards` or `shipments`. I will add them to be safe and cleaner.
   rateCards RateCard[]
 }
 
@@ -44,7 +85,7 @@ model Salesperson {
   updatedAt DateTime @updatedAt
 
   shipments Shipment[]
-  customers Customer[] // Added this back-relation
+  customers Customer[]
 }
 
 model Customer {
@@ -71,7 +112,7 @@ model RateCard {
   updatedAt   DateTime @updatedAt
 
   rows        RateRow[]
-  shipments   Shipment[] // shipments that used this card
+  shipments   Shipment[]
 }
 
 model RateRow {
@@ -90,7 +131,7 @@ model RateRow {
 model Shipment {
   id        String   @id @default(cuid())
   dateIn    DateTime?
-  monthKey  String?  // "YYYY-MM" (ทำ index/filter เร็ว)
+  monthKey  String?  // "YYYY-MM"
   trackingNo    String
   trackingBase  String?
   trackingSuffix Int?
@@ -112,7 +153,7 @@ model Shipment {
   costMode   CostMode @default(AUTO)
   costManual Decimal? @db.Decimal(12,2)
 
-  rateCardUsedId String?       // ✅ ล็อกเรทที่ใช้
+  rateCardUsedId String?
   rateCardUsed   RateCard? @relation(fields: [rateCardUsedId], references: [id])
 
   costCbm   Decimal? @db.Decimal(12,2)
