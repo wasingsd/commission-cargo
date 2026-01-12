@@ -4,6 +4,22 @@ import { CreateRateCardSchema } from '@/lib/validators';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
+export async function GET() {
+    try {
+        const list = await prisma.rateCard.findMany({
+            orderBy: { createdAt: 'desc' },
+            include: {
+                _count: {
+                    select: { rows: true }
+                }
+            }
+        });
+        return NextResponse.json({ success: true, data: list });
+    } catch (e: any) {
+        return NextResponse.json({ error: e.message }, { status: 500 });
+    }
+}
+
 export async function POST(req: Request) {
     const session = await getServerSession(authOptions);
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -26,9 +42,10 @@ export async function POST(req: Request) {
                 rows: rows && rows.length > 0 ? {
                     create: rows.map(r => ({
                         productType: r.productType,
-                        transport: r.transport,
-                        unit: r.unit,
-                        rateValue: r.rateValue
+                        truckCbm: r.truckCbm,
+                        truckKg: r.truckKg,
+                        shipCbm: r.shipCbm,
+                        shipKg: r.shipKg
                     }))
                 } : undefined
             },
@@ -48,7 +65,7 @@ export async function POST(req: Request) {
             }
         });
 
-        return NextResponse.json(card);
+        return NextResponse.json({ success: true, data: card });
     } catch (e: any) {
         return NextResponse.json({ error: e.message }, { status: 500 });
     }
