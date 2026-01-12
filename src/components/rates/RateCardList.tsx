@@ -2,8 +2,21 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Settings2, Plus, Calendar, CheckCircle2, AlertCircle, Copy, Edit, Loader2 } from 'lucide-react';
+import {
+    Settings2,
+    Plus,
+    Calendar,
+    CheckCircle2,
+    AlertCircle,
+    Copy,
+    Edit,
+    Loader2,
+    ChevronRight,
+    TrendingUp,
+    Box
+} from 'lucide-react';
 import { format } from 'date-fns';
+import { th } from 'date-fns/locale';
 
 interface RateCard {
     id: string;
@@ -40,17 +53,13 @@ export function RateCardList() {
         }
     };
 
-    const handleCreate = () => {
-        createDraft();
-    };
-
-    const createDraft = async () => {
+    const handleCreate = async () => {
         try {
             const res = await fetch('/api/rate-cards', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    name: `New Rate Card - ${format(new Date(), 'yyyy-MM-dd')}`,
+                    name: `เรทมาตรฐาน - ${format(new Date(), 'MMM yyyy', { locale: th })}`,
                 })
             });
             const json = await res.json();
@@ -58,95 +67,101 @@ export function RateCardList() {
                 router.push(`/rates/${json.data.id}`);
             }
         } catch (error) {
-            alert('Failed to create draft');
+            alert('ไม่สามารถสร้างร่างเรทใหม่ได้');
         }
     };
 
     return (
-        <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div className="flex items-center gap-3">
-                    <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
-                        <Settings2 className="w-6 h-6" />
+        <div className="space-y-10 animate-premium">
+            {/* Page Header */}
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+                <div>
+                    <div className="flex items-center gap-2 mb-1">
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                        <span className="text-xs font-medium text-slate-400">ศูนย์รวมตรรกะราคา</span>
                     </div>
-                    <div>
-                        <h2 className="text-xl font-bold text-slate-800">Rate Cards</h2>
-                        <p className="text-sm text-slate-500">Manage shipping rates and costs</p>
-                    </div>
+                    <h1 className="text-3xl font-bold text-slate-900">การจัดการ <span className="text-slate-400">เรทราคาทุน</span></h1>
                 </div>
+
                 <button
                     onClick={handleCreate}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue700 text-white rounded-lg transition shadow-sm font-medium"
+                    className="flex items-center gap-2 px-6 py-3.5 bg-slate-900 text-white rounded-xl text-sm font-semibold hover:bg-slate-800 transition-all shadow-lg shadow-slate-900/10 active:scale-95 group"
                 >
                     <Plus className="w-4 h-4" />
-                    New Rate Card
+                    เพิ่มเรทราคาทุนใหม่
                 </button>
             </div>
 
             {loading ? (
-                <div className="flex justify-center py-12">
-                    <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    {[1, 2, 3].map(i => (
+                        <div key={i} className="h-64 bg-white rounded-3xl border border-slate-100 animate-pulse shadow-sm" />
+                    ))}
+                </div>
+            ) : rateCards.length === 0 ? (
+                <div className="py-32 flex flex-col items-center text-center glass-card border-dashed">
+                    <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center mb-4">
+                        <Settings2 className="w-8 h-8 text-slate-300" />
+                    </div>
+                    <h3 className="text-lg font-bold text-slate-900">ไม่พบข้อมูลเรท</h3>
+                    <p className="text-sm text-slate-400 mt-1">ยังไม่มีรายการเรทราคาทุนบันทึกในระบบ</p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     {rateCards.map((card) => (
                         <div
                             key={card.id}
                             onClick={() => router.push(`/rates/${card.id}`)}
-                            className={`
-                                group relative bg-white border rounded-xl p-6 shadow-sm hover:shadow-md transition cursor-pointer
-                                ${card.status === 'ACTIVE' ? 'border-blue-200 ring-1 ring-blue-100' : 'border-slate-200'}
-                            `}
+                            className="group relative bg-white rounded-3xl border border-slate-100 p-8 shadow-premium hover:border-accent-500/30 transition-all duration-300 cursor-pointer overflow-hidden"
                         >
-                            <div className="flex justify-between items-start mb-4">
-                                <div>
-                                    <span className={`
-                                        inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium mb-3
-                                        ${card.status === 'ACTIVE'
-                                            ? 'bg-green-50 text-green-700 border border-green-100'
-                                            : card.status === 'ARCHIVED'
-                                                ? 'bg-slate-100 text-slate-500 border border-slate-200'
-                                                : 'bg-amber-50 text-amber-700 border border-amber-100'
-                                        }
-                                    `}>
-                                        {card.status === 'ACTIVE' && <CheckCircle2 className="w-3 h-3" />}
-                                        {card.status}
-                                    </span>
-                                    <h3 className="font-semibold text-slate-900 group-hover:text-blue-600 transition">
-                                        {card.name}
-                                    </h3>
-                                </div>
-                                <div className="text-slate-400">
-                                    <Calendar className="w-5 h-5" />
-                                </div>
-                            </div>
-
-                            <div className="space-y-2 text-sm text-slate-500 mb-6">
-                                <div className="flex justify-between">
-                                    <span>Effective Date:</span>
-                                    <span className="font-medium text-slate-700">
-                                        {card.effectiveFrom ? format(new Date(card.effectiveFrom), 'dd MMM yyyy') : '-'}
+                            <div className="relative z-10">
+                                <div className="flex justify-between items-start mb-6">
+                                    <div className={`p-2.5 rounded-xl ${card.status === 'ACTIVE' ? 'bg-green-50 text-green-600' : 'bg-slate-50 text-slate-400'
+                                        }`}>
+                                        <TrendingUp className="w-5 h-5" />
+                                    </div>
+                                    <span className={`text-[11px] font-bold px-3 py-1 rounded-full border ${card.status === 'ACTIVE'
+                                        ? 'bg-green-50 text-green-700 border-green-100'
+                                        : 'bg-slate-50 text-slate-500 border-slate-100'
+                                        }`}>
+                                        {card.status === 'ACTIVE' ? 'ใช้งานอยู่' : card.status}
                                     </span>
                                 </div>
-                                <div className="flex justify-between">
-                                    <span>Created Date:</span>
-                                    <span>{format(new Date(card.createdAt), 'dd MMM yyyy')}</span>
-                                </div>
-                            </div>
 
-                            <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-2 text-sm font-medium">
-                                <span className="text-blue-600 group-hover:underline">Edit Rates &rarr;</span>
+                                <h3 className="text-xl font-bold text-slate-900 mb-6 group-hover:text-accent-500 transition-colors truncate">
+                                    {card.name}
+                                </h3>
+
+                                <div className="space-y-3 mb-8">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2 text-xs font-medium text-slate-400">
+                                            <Calendar className="w-3.5 h-3.5" />
+                                            มีผลเมื่อ
+                                        </div>
+                                        <span className="text-xs font-semibold text-slate-700">
+                                            {card.effectiveFrom ? format(new Date(card.effectiveFrom), 'dd MMM yyyy', { locale: th }) : 'ยังไม่ระบุ'}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2 text-xs font-medium text-slate-400">
+                                            <Box className="w-3.5 h-3.5" />
+                                            ประเภทสินค้า
+                                        </div>
+                                        <span className="text-xs font-semibold text-slate-700">
+                                            {card._count?.rows || 0} รายการ
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div className="pt-6 border-t border-slate-50 flex items-center justify-between group/btn">
+                                    <span className="text-xs font-bold text-slate-400 group-hover/btn:text-accent-500 transition-colors">จัดการรายละเอียด</span>
+                                    <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center group-hover/btn:bg-accent-500 group-hover/btn:text-white transition-all">
+                                        <ChevronRight className="w-4 h-4" />
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     ))}
-
-                    {rateCards.length === 0 && (
-                        <div className="col-span-full py-12 text-center text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                            <AlertCircle className="w-10 h-10 mx-auto mb-3 text-slate-400" />
-                            <p className="font-medium">No rate cards found</p>
-                            <p className="text-sm mt-1">Create your first rate card to get started</p>
-                        </div>
-                    )}
                 </div>
             )}
         </div>

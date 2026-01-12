@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { formatNumber, computeCost, parseTrackingNumber } from '@/lib/calc';
 import { ProductType, Transport } from '@prisma/client';
-import { Info, Calculator, Truck, Ship, AlertTriangle } from 'lucide-react';
+import { Calculator, Truck, Ship, AlertTriangle } from 'lucide-react';
 
 interface RateRowPreview {
     productType: ProductType;
@@ -141,7 +141,7 @@ export function ShipmentForm({ onClose, onSuccess, initialData }: ShipmentFormPr
 
             if (!res.ok) {
                 const err = await res.json();
-                throw new Error(err.error || 'Failed to create shipment');
+                throw new Error(err.error || 'ล้มเหลวในการบันทึกรายการ');
             }
 
             onSuccess();
@@ -156,18 +156,18 @@ export function ShipmentForm({ onClose, onSuccess, initialData }: ShipmentFormPr
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[95vh] border border-slate-200">
                 {/* Header */}
-                <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                     <div>
-                        <h2 className="text-xl font-bold text-slate-800">New Shipment</h2>
-                        <p className="text-sm text-slate-500 flex items-center gap-2">
+                        <h2 className="text-xl font-bold text-slate-900">เพิ่มรายการขนส่งใหม่</h2>
+                        <div className="flex items-center gap-2 mt-1">
                             {ratesLoaded ? (
                                 activeRates.length > 0 ?
-                                    <span className="text-green-600 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500"></span> Active Rates Loaded</span> :
-                                    <span className="text-amber-600 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> No Active Rate Card</span>
+                                    <span className="text-xs font-semibold text-green-600 flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-green-500"></span> เชื่อมต่อเรทราคาทุนปัจจุบันแล้ว</span> :
+                                    <span className="text-xs font-semibold text-amber-600 flex items-center gap-1.5"><AlertTriangle className="w-3.5 h-3.5" /> ไม่พบเรทราคาทุนที่เปิดใช้งาน</span>
                             ) : (
-                                <span className="animate-pulse">Loading rates...</span>
+                                <span className="text-xs font-semibold text-slate-400 animate-pulse">กำลังโหลดเรทราคา...</span>
                             )}
-                        </p>
+                        </div>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition text-slate-500">
                         <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -176,45 +176,45 @@ export function ShipmentForm({ onClose, onSuccess, initialData }: ShipmentFormPr
                     </button>
                 </div>
 
-                <form onSubmit={handleSubmit} className="p-6 overflow-y-auto flex-1 space-y-8">
+                <form onSubmit={handleSubmit} className="p-8 overflow-y-auto flex-1 space-y-8">
 
                     {/* Section 1: Customer & Date */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="md:col-span-1">
-                            <label className="block text-xs font-semibold uppercase text-slate-500 mb-1.5">Date In</label>
+                            <label className="block text-xs font-bold text-slate-500 mb-2">วันที่รับเข้า</label>
                             <input
                                 type="date"
                                 required
-                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition"
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition font-semibold"
                                 value={formData.dateIn}
                                 onChange={e => setFormData({ ...formData, dateIn: e.target.value })}
                             />
                         </div>
                         <div className="md:col-span-1">
-                            <label className="block text-xs font-semibold uppercase text-slate-500 mb-1.5">Customer</label>
+                            <label className="block text-xs font-bold text-slate-500 mb-2">รหัสลูกค้า</label>
                             <input
                                 type="text"
                                 required
-                                placeholder="e.g. PR-001"
-                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition font-medium"
+                                placeholder="ตย. PR-001"
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition font-semibold"
                                 value={formData.customerCode}
                                 onChange={e => setFormData({ ...formData, customerCode: e.target.value })}
                             />
                         </div>
                         <div className="md:col-span-1">
-                            <label className="block text-xs font-semibold uppercase text-slate-500 mb-1.5">Tracking No.</label>
+                            <label className="block text-xs font-bold text-slate-500 mb-2">หมายเลขพัสดุ (Tracking)</label>
                             <div className="relative">
                                 <input
                                     type="text"
                                     required
-                                    placeholder="Enter full tracking..."
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition font-mono tracking-wide"
+                                    placeholder="ใส่เลข Tracking..."
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition font-semibold tracking-wide"
                                     value={formData.trackingNo}
                                     onChange={e => setFormData({ ...formData, trackingNo: e.target.value })}
                                 />
                                 {trackingInfo.suffix !== null && (
-                                    <div className="absolute right-2 top-2 px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] rounded font-mono font-bold">
-                                        Suffix: -{trackingInfo.suffix}
+                                    <div className="absolute right-3 top-3 px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] rounded font-bold">
+                                        -{trackingInfo.suffix}
                                     </div>
                                 )}
                             </div>
@@ -225,61 +225,61 @@ export function ShipmentForm({ onClose, onSuccess, initialData }: ShipmentFormPr
 
                     {/* Section 2: Cargo Details & Type */}
                     <div>
-                        <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
-                            <Truck className="w-4 h-4 text-slate-400" /> Cargo Details
+                        <h3 className="text-sm font-bold text-slate-900 mb-5 flex items-center gap-2">
+                            <Truck className="w-4 h-4 text-slate-400" /> รายละเอียดสินค้า
                         </h3>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                             <div className="col-span-2 md:col-span-1">
-                                <label className="block text-xs text-slate-500 mb-1">Product Type</label>
+                                <label className="block text-[11px] font-bold text-slate-400 mb-1.5">ประเภทสินค้า</label>
                                 <select
-                                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium"
+                                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none bg-white font-semibold"
                                     value={formData.productType}
                                     onChange={e => setFormData({ ...formData, productType: e.target.value as ProductType })}
                                 >
-                                    <option value="GENERAL">General (ทั่วไป)</option>
-                                    <option value="TISI">TISI (มอก.)</option>
-                                    <option value="FDA">FDA (อย.)</option>
-                                    <option value="SPECIAL">Special (พิเศษ)</option>
+                                    <option value="GENERAL">ทั่วไป (General)</option>
+                                    <option value="TISI">มอก. (TISI)</option>
+                                    <option value="FDA">อย. (FDA)</option>
+                                    <option value="SPECIAL">พิเศษ (Special)</option>
                                 </select>
                             </div>
                             <div className="col-span-2 md:col-span-1">
-                                <label className="block text-xs text-slate-500 mb-1">Transport</label>
-                                <div className="flex bg-slate-100 rounded-lg p-1">
+                                <label className="block text-[11px] font-bold text-slate-400 mb-1.5">ช่องทางขนส่ง</label>
+                                <div className="flex bg-slate-100 rounded-xl p-1">
                                     <button
                                         type="button"
                                         onClick={() => setFormData({ ...formData, transport: 'TRUCK' })}
-                                        className={`flex-1 py-1.5 rounded-md text-xs font-medium transition flex items-center justify-center gap-1 ${formData.transport === 'TRUCK' ? 'bg-white shadow-sm text-indigo-700' : 'text-slate-500'}`}
+                                        className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${formData.transport === 'TRUCK' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500'}`}
                                     >
-                                        <Truck className="w-3 h-3" /> Truck
+                                        <Truck className="w-3.5 h-3.5" /> ทางบก
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => setFormData({ ...formData, transport: 'SHIP' })}
-                                        className={`flex-1 py-1.5 rounded-md text-xs font-medium transition flex items-center justify-center gap-1 ${formData.transport === 'SHIP' ? 'bg-white shadow-sm text-blue-700' : 'text-slate-500'}`}
+                                        className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${formData.transport === 'SHIP' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500'}`}
                                     >
-                                        <Ship className="w-3 h-3" /> Ship
+                                        <Ship className="w-3.5 h-3.5" /> ทางเรือ
                                     </button>
                                 </div>
                             </div>
 
                             <div className="md:col-span-1">
-                                <label className="block text-xs text-slate-500 mb-1">Weight (KG)</label>
+                                <label className="block text-[11px] font-bold text-slate-400 mb-1.5">น้ำหนัก (กิโลกรัม)</label>
                                 <input
                                     type="number"
                                     step="any"
                                     placeholder="0"
-                                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-right font-mono"
+                                    className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none text-right font-semibold"
                                     value={formData.weightKg}
                                     onChange={e => setFormData({ ...formData, weightKg: e.target.value })}
                                 />
                             </div>
                             <div className="md:col-span-1">
-                                <label className="block text-xs text-slate-500 mb-1">Volume (CBM)</label>
+                                <label className="block text-[11px] font-bold text-slate-400 mb-1.5">ปริมาตร (CBM)</label>
                                 <input
                                     type="number"
                                     step="any"
                                     placeholder="0"
-                                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-right font-mono"
+                                    className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none text-right font-semibold"
                                     value={formData.cbm}
                                     onChange={e => setFormData({ ...formData, cbm: e.target.value })}
                                 />
@@ -287,77 +287,75 @@ export function ShipmentForm({ onClose, onSuccess, initialData }: ShipmentFormPr
                         </div>
                     </div>
 
-                    {/* Section 3: Cost Calculation (The "Wow" Part) */}
-                    <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
-                        <div className="flex justify-between items-start mb-4">
-                            <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                                <Calculator className="w-4 h-4 text-blue-500" /> Cost Calculation
+                    {/* Section 3: Cost Calculation */}
+                    <div className="bg-slate-50/50 rounded-2xl p-6 border border-slate-200">
+                        <div className="flex justify-between items-start mb-5">
+                            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                                <Calculator className="w-4 h-4 text-blue-500" /> การคํานวณต้นทุน
                             </h3>
 
                             <div className="flex bg-white rounded-lg p-0.5 border border-slate-200 shadow-sm">
                                 <button
                                     type="button"
                                     onClick={() => setFormData({ ...formData, costMode: 'AUTO' })}
-                                    className={`px-3 py-1 rounded-md text-xs font-medium transition ${formData.costMode === 'AUTO' ? 'bg-blue-50 text-blue-700' : 'text-slate-500'}`}
+                                    className={`px-3 py-1.5 rounded-md text-[11px] font-bold transition ${formData.costMode === 'AUTO' ? 'bg-blue-50 text-blue-700' : 'text-slate-500'}`}
                                 >
-                                    Auto
+                                    อัตโนมัติ
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => setFormData({ ...formData, costMode: 'MANUAL' })}
-                                    className={`px-3 py-1 rounded-md text-xs font-medium transition ${formData.costMode === 'MANUAL' ? 'bg-amber-50 text-amber-700' : 'text-slate-500'}`}
+                                    className={`px-3 py-1.5 rounded-md text-[11px] font-bold transition ${formData.costMode === 'MANUAL' ? 'bg-amber-50 text-amber-700' : 'text-slate-500'}`}
                                 >
-                                    Manual
+                                    ระบุเอง
                                 </button>
                             </div>
                         </div>
 
                         {formData.costMode === 'MANUAL' ? (
                             <div>
-                                <label className="block text-xs text-slate-500 mb-1">Manual Cost Override</label>
+                                <label className="block text-[11px] font-bold text-slate-400 mb-1.5">ต้นทุนที่ระบุเอง</label>
                                 <input
                                     type="number"
                                     step="any"
-                                    className="w-full bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none text-right font-mono font-bold text-amber-800"
+                                    className="w-full bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm focus:ring-0 outline-none text-right font-bold text-amber-800"
                                     value={formData.costManual}
                                     onChange={e => setFormData({ ...formData, costManual: e.target.value })}
-                                    placeholder="Enter cost manually"
+                                    placeholder="0.00"
                                 />
                             </div>
                         ) : (
-                            // Auto Preview
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div className={`p-3 rounded-lg border ${preview?.rule === 'CBM' ? 'bg-blue-50 border-blue-200 ring-1 ring-blue-100' : 'bg-white border-slate-100 opacity-60'}`}>
-                                    <div className="text-[10px] text-slate-400 uppercase font-semibold mb-1">By CBM</div>
-                                    <div className="text-lg font-bold text-slate-700">{formatNumber(preview?.costCbm)}</div>
-                                    <div className="text-xs text-slate-400 mt-1">Rate: {formatNumber(preview?.rates?.rateCbm)}</div>
+                                <div className={`p-4 rounded-xl border ${preview?.rule === 'CBM' ? 'bg-blue-50/50 border-blue-200' : 'bg-white border-slate-100 opacity-60'}`}>
+                                    <div className="text-[10px] text-slate-400 font-bold mb-1">คิดตาม CBM</div>
+                                    <div className="text-lg font-bold text-slate-900">{formatNumber(preview?.costCbm)}</div>
+                                    <div className="text-[10px] text-slate-400 mt-1">เรท: {formatNumber(preview?.rates?.rateCbm)}</div>
                                 </div>
-                                <div className={`p-3 rounded-lg border ${preview?.rule === 'KG' ? 'bg-blue-50 border-blue-200 ring-1 ring-blue-100' : 'bg-white border-slate-100 opacity-60'}`}>
-                                    <div className="text-[10px] text-slate-400 uppercase font-semibold mb-1">By KG</div>
-                                    <div className="text-lg font-bold text-slate-700">{formatNumber(preview?.costKg)}</div>
-                                    <div className="text-xs text-slate-400 mt-1">Rate: {formatNumber(preview?.rates?.rateKg)}</div>
+                                <div className={`p-4 rounded-xl border ${preview?.rule === 'KG' ? 'bg-blue-50/50 border-blue-200' : 'bg-white border-slate-100 opacity-60'}`}>
+                                    <div className="text-[10px] text-slate-400 font-bold mb-1">คิดตาม กก.</div>
+                                    <div className="text-lg font-bold text-slate-900">{formatNumber(preview?.costKg)}</div>
+                                    <div className="text-[10px] text-slate-400 mt-1">เรท: {formatNumber(preview?.rates?.rateKg)}</div>
                                 </div>
-                                <div className="flex flex-col justify-center items-end p-3">
-                                    <div className="text-xs text-slate-500 mb-1">Final Cost</div>
+                                <div className="flex flex-col justify-center items-end p-2">
+                                    <div className="text-[11px] font-bold text-slate-400 mb-1">ต้นทุนสุทธิ</div>
                                     <div className="text-2xl font-bold text-slate-900">{formatNumber(preview?.finalCost)}</div>
-                                    <div className="text-xs px-2 py-0.5 rounded-full bg-slate-200 text-slate-600 font-medium">
-                                        Applies: <span className="font-bold">{preview?.rule}</span>
+                                    <div className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded mt-1">
+                                        เงื่อนไข: {preview?.rule === 'CBM' ? 'ปริมาตร' : 'น้ำหนัก'}
                                     </div>
                                 </div>
                             </div>
                         )}
 
-                        {/* Profit Check */}
-                        <div className="mt-4 pt-4 border-t border-slate-200 grid grid-cols-2 gap-4 items-center">
+                        <div className="mt-5 pt-5 border-t border-slate-200 grid grid-cols-2 gap-6 items-center">
                             <div>
-                                <label className="block text-xs text-slate-500 mb-1">Sell Price (Base)</label>
+                                <label className="block text-[11px] font-bold text-slate-400 mb-1.5">ราคาขาย (Sell Price)</label>
                                 <div className="relative">
-                                    <span className="absolute left-3 top-2 text-slate-400 font-bold">฿</span>
+                                    <span className="absolute left-4 top-3.5 text-slate-400 font-bold text-sm">฿</span>
                                     <input
                                         type="number"
                                         step="any"
                                         required
-                                        className="w-full pl-7 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 font-bold text-slate-900"
+                                        className="w-full pl-8 pr-4 py-3 bg-white border border-slate-300 rounded-xl text-sm focus:ring-4 focus:ring-green-500/10 focus:border-green-500 font-bold text-slate-900"
                                         value={formData.sellBase}
                                         onChange={e => setFormData({ ...formData, sellBase: e.target.value })}
                                         placeholder="0.00"
@@ -366,42 +364,41 @@ export function ShipmentForm({ onClose, onSuccess, initialData }: ShipmentFormPr
                             </div>
 
                             {preview?.isLoss && (
-                                <div className="flex items-center gap-2 text-red-600 bg-red-50 p-2 rounded-lg border border-red-100 text-xs font-medium animate-pulse">
-                                    <AlertTriangle className="w-4 h-4" />
-                                    Warning: Sell Price is lower than Cost!
+                                <div className="flex items-center gap-2.5 text-red-600 bg-red-50 p-4 rounded-xl border border-red-100 text-[11px] font-bold animate-pulse">
+                                    <AlertTriangle className="w-4 h-4 shrink-0" />
+                                    คําเตือน: ราคาขายต่ำกว่าต้นทุนที่คำนวณได้!
                                 </div>
                             )}
                         </div>
                     </div>
 
                     <div>
-                        <label className="block text-xs font-semibold uppercase text-slate-500 mb-1.5">Note (Optional)</label>
+                        <label className="block text-xs font-bold text-slate-500 mb-2">หมายเหตุ</label>
                         <textarea
-                            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition"
+                            className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition font-medium"
                             rows={2}
                             value={formData.note}
                             onChange={e => setFormData({ ...formData, note: e.target.value })}
-                            placeholder="Add notes..."
+                            placeholder="ระบุรายละเอียดเพิ่มเติม..."
                         />
                     </div>
 
                 </form>
 
-                <div className="p-5 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+                <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-3">
                     <button
                         onClick={onClose}
-                        className="px-5 py-2.5 text-slate-600 hover:bg-slate-200 rounded-lg text-sm font-medium transition"
+                        className="px-6 py-2.5 text-slate-500 hover:bg-slate-200 rounded-xl text-sm font-bold transition"
                         disabled={loading}
                     >
-                        Cancel
+                        ยกเลิก
                     </button>
                     <button
                         onClick={handleSubmit}
                         disabled={loading}
-                        className="px-8 py-2.5 bg-slate-900 text-white hover:bg-slate-800 rounded-lg text-sm font-bold transition shadow-lg disabled:opacity-70 flex items-center gap-2"
+                        className="px-10 py-2.5 bg-slate-900 text-white hover:bg-slate-800 rounded-xl text-sm font-bold transition shadow-lg active:scale-95 disabled:opacity-50 flex items-center gap-2"
                     >
-                        {loading && <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>}
-                        {loading ? 'Submitting...' : 'Create Shipment'}
+                        {loading ? 'กำลังบันทึก...' : 'บันทึกรายการ'}
                     </button>
                 </div>
             </div>

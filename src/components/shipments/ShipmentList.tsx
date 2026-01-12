@@ -1,53 +1,66 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { formatCurrency, formatNumber } from '@/lib/calc';
-import { ShipmentForm } from './ShipmentForm'; // We just created this
+import {
+    Search,
+    Filter,
+    Plus,
+    Download,
+    MoreVertical,
+    Package,
+    User,
+    TrendingUp,
+    TrendingDown,
+    AlertCircle,
+    CheckCircle2,
+    Inbox,
+    Calendar,
+    ArrowUpRight,
+    ArrowDownRight,
+    Search as SearchIcon
+} from 'lucide-react';
 import { format } from 'date-fns';
+import { th } from 'date-fns/locale';
+import { ShipmentForm } from './ShipmentForm';
+import { formatCurrency, formatNumber } from '@/lib/calc';
 
 interface Shipment {
     id: string;
     dateIn: string;
+    customerCode: string;
     trackingNo: string;
-    customer: { code: string; name: string | null };
-    salesperson: { code: string; name: string } | null;
-    productType: string;
-    transport: string;
-    weightKg: string;
-    cbm: string;
-    costFinal: string;
-    sellBase: string;
-    commissionValue: string;
-    commissionMethod: string;
-    costRule: string;
-    // We compute status flag on frontend or use from API
+    transport: 'TRUCK' | 'SHIP';
+    weightKg: number;
+    cbm: number;
+    sellBase: number;
+    costFinal: number;
+    commissionValue: number;
+    status: string;
+    salesCode: string | null;
 }
 
 export function ShipmentList() {
     const [shipments, setShipments] = useState<Shipment[]>([]);
     const [loading, setLoading] = useState(true);
-    const [showForm, setShowForm] = useState(false);
+    const [showAddForm, setShowAddForm] = useState(false);
     const [filters, setFilters] = useState({
+        search: '',
         month: '',
-        customer: '',
-        sales: ''
+        status: ''
     });
 
     const fetchShipments = async () => {
         setLoading(true);
         try {
             const params = new URLSearchParams();
-            if (filters.month) params.append('month', filters.month);
-            if (filters.customer) params.append('customerId', filters.customer); // Backend expects customerId actually, but let's assume filtering by string locally or exact match later
-
-            // Ideally we pass customerCode to API or fetch customer ID first. 
-            // For simplicity/demo with current API:
+            if (filters.search) params.append('search', filters.search);
             const res = await fetch(`/api/shipments?${params.toString()}`);
-            if (!res.ok) throw new Error('Failed to fetch');
             const data = await res.json();
-            setShipments(data);
+            if (data.success) {
+                setShipments(data.data);
+            }
         } catch (error) {
-            console.error(error);
+            console.error('Failed to fetch shipments:', error);
         } finally {
             setLoading(false);
         }
@@ -55,164 +68,189 @@ export function ShipmentList() {
 
     useEffect(() => {
         fetchShipments();
-    }, [filters.month]); // Refresh when month changes. Others might want a "Filter" button.
+    }, [filters]);
 
-    // Filter logic on client for code/sales search (if API doesn't support fuzzy search yet)
-    const filteredShipments = shipments.filter(s => {
-        const matchCustomer = !filters.customer ||
-            (s.customer?.code?.toLowerCase().includes(filters.customer.toLowerCase())) ||
-            (s.customer?.name?.toLowerCase().includes(filters.customer.toLowerCase()));
+    const getStatusIcon = (status: string) => {
+        switch (status) {
+            case 'LOSS': return <AlertCircle className="w-4 h-4 text-red-500" />;
+            case 'MISSING': return <AlertCircle className="w-4 h-4 text-amber-500" />;
+            case 'NORMAL': return <CheckCircle2 className="w-4 h-4 text-green-500" />;
+            default: return <Package className="w-4 h-4 text-slate-400" />;
+        }
+    };
 
-        const matchSales = !filters.sales ||
-            (s.salesperson?.code?.toLowerCase().includes(filters.sales.toLowerCase())) ||
-            (s.salesperson?.name?.toLowerCase().includes(filters.sales.toLowerCase()));
-
-        return matchCustomer && matchSales;
-    });
+    const translateStatus = (status: string) => {
+        const trans: Record<string, string> = {
+            'LOSS': 'ขาดทุน',
+            'MISSING': 'รอเรทราคา',
+            'NORMAL': 'ปกติ',
+            'INCOMPLETE': 'ข้อมูลไม่ครบ'
+        };
+        return trans[status] || 'รอดำเนินการ';
+    };
 
     return (
-        <div className="space-y-6">
-            {/* Header Actions */}
-            <div className="flex justify-between items-center">
-                <div className="flex gap-4 items-center bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
-                    <input
-                        type="month"
-                        className="border-none bg-transparent px-3 py-2 text-sm focus:ring-0 text-slate-600 font-medium"
-                        value={filters.month}
-                        onChange={e => setFilters({ ...filters, month: e.target.value })}
-                    />
-                    <div className="w-px h-6 bg-slate-200" />
-                    <input
-                        type="text"
-                        placeholder="Filter Customer..."
-                        className="border-none bg-transparent px-3 py-2 text-sm focus:ring-0 w-40"
-                        value={filters.customer}
-                        onChange={e => setFilters({ ...filters, customer: e.target.value })}
-                    />
+        <div className="space-y-8 animate-premium">
+            {/* Header Content */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                <div>
+                    <h1 className="text-3xl font-bold text-slate-900 tracking-tight">รายการ <span className="text-slate-400">ขนส่งสินค้า</span></h1>
+                    <p className="text-sm text-slate-400 mt-1">จัดการและตรวจสอบราคาทุน-คอมมิชชั่นรายพัสดุ</p>
                 </div>
 
-                <div className="flex gap-3">
-                    <button className="px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-50 transition shadow-sm">
-                        Export CSV
-                    </button>
+                <div className="flex flex-wrap items-center gap-3">
                     <button
-                        onClick={() => setShowForm(true)}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition shadow-lg shadow-blue-600/20 flex items-center gap-2"
+                        onClick={() => setShowAddForm(true)}
+                        className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3.5 bg-slate-900 text-white rounded-xl text-sm font-semibold hover:bg-slate-800 transition-all shadow-lg active:scale-95 group"
                     >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                        New Shipment
+                        <Plus className="w-4 h-4" />
+                        เพิ่มรายการใหม่
+                    </button>
+                    <button className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3.5 bg-white border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-all shadow-sm">
+                        <Download className="w-4 h-4" />
+                        ส่งออกข้อมูล
                     </button>
                 </div>
             </div>
 
-            {/* Table */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            {/* Filter Shelf */}
+            <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm flex flex-col md:flex-row items-center gap-4">
+                <div className="relative flex-1 w-full md:w-auto">
+                    <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input
+                        type="text"
+                        placeholder="ค้นหาด้วยรหัสลูกค้า หรือ เลขพัสดุ..."
+                        className="w-full bg-slate-50/50 border border-slate-100 rounded-xl py-3 pl-11 pr-4 text-sm focus:ring-0 focus:border-accent-500 transition-all outline-none font-medium"
+                        value={filters.search}
+                        onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+                    />
+                </div>
+
+                <div className="flex items-center gap-3 w-full md:w-auto">
+                    <select className="bg-white border border-slate-200 rounded-xl py-3 px-4 text-sm font-medium focus:ring-0 outline-none min-w-[140px]">
+                        <option>รอบเดือนทั้งหมด</option>
+                        <option>มกราคม 2026</option>
+                    </select>
+                    <button className="p-3 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all">
+                        <Filter className="w-5 h-5" />
+                    </button>
+                </div>
+            </div>
+
+            {/* Main Table */}
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-premium overflow-hidden">
                 <div className="overflow-x-auto">
-                    <table className="w-full text-left whitespace-nowrap">
+                    <table className="w-full text-left border-collapse">
                         <thead>
-                            <tr className="bg-slate-50 border-b border-slate-100 text-xs uppercase tracking-wider text-slate-500 font-medium">
-                                <th className="px-6 py-4">Date / Tracking</th>
-                                <th className="px-6 py-4">Customer / Sales</th>
-                                <th className="px-6 py-4">Details</th>
-                                <th className="px-6 py-4 text-right">Cost</th>
-                                <th className="px-6 py-4 text-right">Sell</th>
-                                <th className="px-6 py-4 text-right">Commission</th>
-                                <th className="px-6 py-4 text-center">Status</th>
+                            <tr className="bg-slate-50/50 border-b border-slate-100">
+                                <th className="px-6 py-5 text-xs font-bold text-slate-400 tracking-wider">รายละเอียดพัสดุ</th>
+                                <th className="px-6 py-5 text-xs font-bold text-slate-400 tracking-wider text-center">ประเภท</th>
+                                <th className="px-6 py-5 text-xs font-bold text-slate-400 tracking-wider text-right">สัดส่วน กก./CBM</th>
+                                <th className="px-6 py-5 text-xs font-bold text-slate-400 tracking-wider text-right">ราคาขาย/ต้นทุน</th>
+                                <th className="px-6 py-5 text-xs font-bold text-slate-400 tracking-wider text-right">ส่วนต่าง/GP</th>
+                                <th className="px-6 py-5 text-xs font-bold text-slate-400 tracking-wider text-center">สถานะ</th>
+                                <th className="px-6 py-5 text-xs font-bold text-slate-400 tracking-wider"></th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100">
+                        <tbody className="divide-y divide-slate-50">
                             {loading ? (
                                 <tr>
-                                    <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
-                                        Loading shipments...
+                                    <td colSpan={7} className="py-20 text-center">
+                                        <div className="flex flex-col items-center gap-3">
+                                            <div className="w-8 h-8 border-4 border-slate-100 border-t-accent-500 rounded-full animate-spin" />
+                                            <p className="text-xs font-medium text-slate-400">กำลังดึงข้อมูลขนส่ง...</p>
+                                        </div>
                                     </td>
                                 </tr>
-                            ) : filteredShipments.length === 0 ? (
+                            ) : shipments.length === 0 ? (
                                 <tr>
-                                    <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
-                                        No shipments found.
+                                    <td colSpan={7} className="py-32 text-center grayscale opacity-50">
+                                        <Inbox className="w-16 h-16 mx-auto mb-4 text-slate-200" />
+                                        <p className="text-sm font-semibold text-slate-900">ไม่พบรายการขนส่ง</p>
                                     </td>
                                 </tr>
                             ) : (
-                                filteredShipments.map((item) => {
-                                    const sell = Number(item.sellBase);
-                                    const cost = Number(item.costFinal);
-                                    const comm = Number(item.commissionValue);
-                                    const isLoss = sell < cost;
-                                    const isOnePct = item.commissionMethod === 'ONEPCT';
-
-                                    return (
-                                        <tr key={item.id} className="hover:bg-slate-50/80 transition group cursor-default">
-                                            <td className="px-6 py-4">
-                                                <div className="font-medium text-slate-800">
-                                                    {item.dateIn ? format(new Date(item.dateIn), 'dd MMM yyyy') : '-'}
+                                shipments.map((item) => (
+                                    <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
+                                        <td className="px-6 py-6">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-white group-hover:shadow-sm transition-all">
+                                                    <Package className="w-5 h-5" />
                                                 </div>
-                                                <div className="text-xs font-mono text-slate-500 mt-0.5 group-hover:text-blue-600 transition">
-                                                    {item.trackingNo}
+                                                <div className="flex flex-col min-w-0">
+                                                    <span className="text-sm font-bold text-slate-900 tracking-tight">{item.trackingNo}</span>
+                                                    <span className="text-[11px] font-medium text-slate-400">ลูกค้า: {item.customerCode}</span>
                                                 </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="text-sm font-medium text-slate-800">{item.customer?.code}</div>
-                                                <div className="text-xs text-slate-500">
-                                                    Sales: {item.salesperson?.code || '-'}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="text-xs font-semibold text-slate-600 uppercase tracking-tight">
-                                                    {item.productType} • {item.transport}
-                                                </div>
-                                                <div className="text-xs text-slate-400 mt-1">
-                                                    {formatNumber(Number(item.weightKg))} kg / {formatNumber(Number(item.cbm))} cbm
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 text-right">
-                                                <div className="font-medium text-slate-700">
-                                                    {formatCurrency(cost)}
-                                                </div>
-                                                <div className="text-[10px] text-slate-400 uppercase">
-                                                    {item.costRule}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 text-right font-medium text-slate-700">
-                                                {formatCurrency(sell)}
-                                            </td>
-                                            <td className={`px-6 py-4 text-right font-bold ${comm < 0 ? 'text-red-500' : 'text-green-600'}`}>
-                                                {comm > 0 ? '+' : ''}{formatCurrency(comm)}
-                                                <div className="text-[10px] font-normal text-slate-400 uppercase">
-                                                    {item.commissionMethod === 'ONEPCT' ? '1%' : 'DIFF'}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 text-center">
-                                                {isLoss ? (
-                                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
-                                                        LOSS
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-6 text-center">
+                                            <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-50 rounded-lg text-[11px] font-bold text-slate-500">
+                                                {item.transport === 'TRUCK' ? 'ทางบก' : 'ทางเรือ'}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-6 text-right">
+                                            <div className="flex flex-col">
+                                                <span className="text-sm font-semibold text-slate-900">{formatNumber(item.weightKg)} กก.</span>
+                                                <span className="text-[11px] font-medium text-slate-400">{formatNumber(item.cbm, 3)} CBM</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-6 text-right">
+                                            <div className="flex flex-col">
+                                                <span className="text-sm font-bold text-slate-900">{formatCurrency(item.sellBase)}</span>
+                                                <span className="text-[11px] font-semibold text-slate-400">ทุน: {formatCurrency(item.costFinal)}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-6 text-right">
+                                            <div className="flex flex-col">
+                                                <span className={`text-sm font-bold ${item.commissionValue >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                                                    {item.commissionValue >= 0 ? '+' : ''}{formatCurrency(item.commissionValue)}
+                                                </span>
+                                                <div className="flex items-center justify-end gap-1 mt-0.5">
+                                                    {item.commissionValue >= 0 ? <ArrowUpRight className="w-3 h-3 text-green-500" /> : <ArrowDownRight className="w-3 h-3 text-red-500" />}
+                                                    <span className="text-[10px] font-bold text-slate-400">
+                                                        {formatNumber((item.commissionValue / (item.sellBase || 1)) * 100)}%
                                                     </span>
-                                                ) : isOnePct ? (
-                                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
-                                                        1% MODE
-                                                    </span>
-                                                ) : (
-                                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
-                                                        OK
-                                                    </span>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    );
-                                })
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-6 text-center">
+                                            <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold border transition-colors
+                                                ${item.status === 'NORMAL' ? 'bg-green-50 text-green-700 border-green-100' :
+                                                    item.status === 'LOSS' ? 'bg-red-50 text-red-700 border-red-100' :
+                                                        'bg-amber-50 text-amber-700 border-amber-100'}
+                                            `}>
+                                                {getStatusIcon(item.status)}
+                                                {translateStatus(item.status)}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-6 text-right">
+                                            <button className="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-400">
+                                                <MoreVertical className="w-4 h-4" />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))
                             )}
                         </tbody>
                     </table>
                 </div>
+
+                {/* Pagination Placeholder */}
+                <div className="px-8 py-5 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between">
+                    <p className="text-xs font-semibold text-slate-400">แสดง {shipments.length} รายการปัจจุบัน</p>
+                    <div className="flex items-center gap-2">
+                        <button className="px-4 py-2 text-xs font-bold text-slate-400 hover:text-slate-900 transition-colors">ย้อนกลับ</button>
+                        <button className="px-4 py-2 text-xs font-bold bg-white shadow-sm border border-slate-200 rounded-lg text-slate-900">1</button>
+                        <button className="px-4 py-2 text-xs font-bold text-slate-400 hover:text-slate-900 transition-colors">ถัดไป</button>
+                    </div>
+                </div>
             </div>
 
-            {showForm && (
+            {showAddForm && (
                 <ShipmentForm
-                    onClose={() => setShowForm(false)}
+                    onClose={() => setShowAddForm(false)}
                     onSuccess={() => {
-                        setShowForm(false);
+                        setShowAddForm(false);
                         fetchShipments();
                     }}
                 />

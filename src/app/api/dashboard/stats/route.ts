@@ -65,11 +65,27 @@ export async function GET() {
             }
         }
 
-        // Risks: Duplicates (Base Tracking check?? logic too complex for simple loop maybe?)
-        // Let's skip duplicate check on backend for now to save time, or do simple tracking check
-        // User really wants duplicate tracking check (-1, -2)
-        // We can do it on Client side if shipments array is passed, or here.
-        // Let's stick to Server returning "Loss" risks first.
+        // Risks: Duplicate Base Tracking Check
+        const baseMap = new Map<string, string[]>();
+        shipments.forEach(s => {
+            if (!s.trackingNo) return;
+            const base = s.trackingNo.split('-')[0];
+            if (!baseMap.has(base)) baseMap.set(base, []);
+            baseMap.get(base)!.push(s.trackingNo);
+        });
+
+        for (const [base, trackers] of baseMap.entries()) {
+            if (trackers.length > 1) {
+                // Potential duplicates or combined shipments
+                risks.push({
+                    id: `dup-${base}`,
+                    tracking: base,
+                    customer: 'Multiple',
+                    type: 'DUP',
+                    detail: `${trackers.length} รายการ (Suffix Check)`
+                });
+            }
+        }
 
         return NextResponse.json({
             success: true,

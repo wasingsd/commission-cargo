@@ -1,34 +1,93 @@
+'use client';
+
 import Link from 'next/link';
-import { LayoutDashboard, Coins, Truck, FileText, ClipboardList } from 'lucide-react';
+import { usePathname } from 'next/navigation';
+import {
+    LayoutDashboard,
+    Coins,
+    Truck,
+    FileText,
+    ClipboardList,
+    Package,
+    Settings,
+    LogOut,
+    ChevronRight,
+    User as UserIcon
+} from 'lucide-react';
 
 const menuItems = [
-    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { href: '/rates', label: 'Rate Cards', icon: Coins },
-    { href: '/shipments', label: 'Shipments', icon: Truck },
-    { href: '/summary', label: 'Summary', icon: FileText },
-    { href: '/logs', label: 'Audit Logs', icon: ClipboardList },
+    { href: '/dashboard', label: 'แดชบอร์ด', icon: LayoutDashboard },
+    { href: '/rates', label: 'เรทราคาทุน', icon: Coins },
+    { href: '/shipments', label: 'รายการขนส่ง', icon: Truck },
+    { href: '/summary', label: 'รายงานสรุป', icon: FileText },
+    { href: '/logs', label: 'ประวัติการใช้งาน', icon: ClipboardList },
 ];
 
 export function Sidebar() {
+    const pathname = usePathname();
+
     return (
-        <aside className="w-64 bg-slate-900 text-white min-h-screen p-4 flex flex-col fixed left-0 top-0 h-full overflow-y-auto">
-            <div className="text-xl font-bold mb-8 px-4 py-2 border-b border-slate-700 bg-gradient-to-r from-blue-400 to-teal-400 bg-clip-text text-transparent">
-                Commission Cargo
+        <aside className="w-72 bg-brand-navy fixed left-0 top-0 h-full z-50 flex flex-col border-r border-white/5 shadow-2xl">
+            {/* Brand Logo */}
+            <div className="p-10 flex items-center gap-4">
+                <div className="w-10 h-10 bg-accent-500 rounded-xl flex items-center justify-center text-white shadow-accent shadow-lg">
+                    <Package className="w-6 h-6" />
+                </div>
+                <div className="flex flex-col">
+                    <span className="text-xl font-bold text-white tracking-tight">PR CARGO</span>
+                    <span className="text-[11px] font-medium text-slate-500">ระบบจัดการค่าคอมมิชชั่น</span>
+                </div>
             </div>
-            <nav className="flex-1 space-y-2">
-                {menuItems.map((item) => (
-                    <Link
-                        key={item.href}
-                        href={item.href}
-                        className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 hover:text-blue-400 transition-all duration-200 group"
-                    >
-                        <item.icon className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                        <span className="font-medium">{item.label}</span>
-                    </Link>
-                ))}
+
+            {/* Navigation */}
+            <nav className="flex-1 px-4 mt-2 space-y-1">
+                {menuItems.map((item) => {
+                    const isActive = pathname === item.href || (item.href === '/dashboard' && pathname === '/');
+                    return (
+                        <Link
+                            key={item.href}
+                            href={item.href}
+                            className={`
+                                group flex items-center justify-between px-4 py-3.5 rounded-2xl transition-all duration-200
+                                ${isActive
+                                    ? 'bg-accent-500 text-white shadow-accent shadow-lg'
+                                    : 'text-slate-400 hover:bg-white/5 hover:text-white'}
+                            `}
+                        >
+                            <div className="flex items-center gap-3">
+                                <item.icon className={`w-5 h-5 transition-transform duration-300 group-hover:scale-105 ${isActive ? 'text-white' : 'text-slate-500 group-hover:text-accent-500'}`} />
+                                <span className="font-medium tracking-tight">{item.label}</span>
+                            </div>
+                            {isActive && <ChevronRight className="w-4 h-4 opacity-50" />}
+                        </Link>
+                    );
+                })}
             </nav>
-            <div className="mt-auto px-4 py-4 text-xs text-slate-500">
-                v0.1.0 MVP
+
+            {/* Bottom Actions */}
+            <div className="p-4 mt-auto border-t border-white/5">
+                <div className="bg-white/5 rounded-2xl p-4 mb-4 group cursor-pointer hover:bg-white/10 transition border border-transparent hover:border-white/10">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-accent-500 font-bold border border-white/10 group-hover:border-accent-500/50 transition">
+                            <UserIcon className="w-5 h-5" />
+                        </div>
+                        <div className="flex-1 overflow-hidden">
+                            <p className="text-sm font-semibold text-white truncate">ผู้ดูแลระบบ</p>
+                            <p className="text-[11px] font-medium text-slate-500">Super Admin</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex gap-2">
+                    <button className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-slate-500 hover:bg-white/5 hover:text-white transition group">
+                        <Settings className="w-4 h-4" />
+                        <span className="text-[12px] font-medium text-slate-500 group-hover:text-white">ตั้งค่า</span>
+                    </button>
+                    <button className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition group">
+                        <LogOut className="w-4 h-4" />
+                        <span className="text-[12px] font-medium text-slate-500 group-hover:text-red-400">ออกจากระบบ</span>
+                    </button>
+                </div>
             </div>
         </aside>
     );

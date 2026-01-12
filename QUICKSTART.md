@@ -3,6 +3,15 @@
 ## 🚀 Getting Started
 
 ### 1. Database Setup (First Time Only)
+
+#### A. Start Local Database (Via Docker)
+If you don't have a local Postgres running:
+```bash
+docker-compose up -d
+```
+*Wait 10-20 seconds for DB to initialize.*
+
+#### B. Initialize Schema & Data
 ```bash
 # Push schema to database
 npx prisma db push

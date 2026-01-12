@@ -3,21 +3,15 @@
  * Run: npx prisma db seed
  */
 
-import 'dotenv/config'; // Load env vars
 import { PrismaClient, ProductType, Transport, CostMode, CostRule, CommissionMethod } from '@prisma/client';
-import { Pool } from 'pg';
-import { PrismaPg } from '@prisma/adapter-pg';
 import bcrypt from 'bcryptjs';
 
-const connectionString = `${process.env.DATABASE_URL}`;
-
-const pool = new Pool({ connectionString });
-const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
+const prisma = new PrismaClient();
 
 async function main() {
     console.log('🌱 Starting enhanced seed...');
 
+    // 1. Create Users
     const hashedPassword = await bcrypt.hash('password123', 10);
 
     const admin = await prisma.user.upsert({
@@ -44,6 +38,7 @@ async function main() {
 
     console.log('✅ Users created');
 
+    // 2. Create Salespersons
     const sales = await Promise.all([
         prisma.salesperson.upsert({
             where: { code: 'S-01' },
@@ -64,6 +59,7 @@ async function main() {
 
     console.log('✅ Salespersons created');
 
+    // 3. Create Customers
     const customers = await Promise.all([
         prisma.customer.upsert({
             where: { code: 'PR-001' },
@@ -84,6 +80,7 @@ async function main() {
 
     console.log('✅ Customers created');
 
+    // 4. Create Active Rate Card
     const rateCard = await prisma.rateCard.create({
         data: {
             name: 'January 2026 Standard Rates',
@@ -127,6 +124,7 @@ async function main() {
 
     console.log('✅ Rate card created. Fetching full details...');
 
+    // Fetch full rate card with rows for calculation usage
     const rateCardFull = await prisma.rateCard.findUnique({
         where: { id: rateCard.id },
         include: { rows: true }
@@ -134,7 +132,9 @@ async function main() {
 
     if (!rateCardFull) throw new Error("Failed to retrieve created rate card");
 
+    // 5. Create Sample Shipments (Varied scenarios)
     const shipmentData = [
+        // Normal profit scenarios
         {
             dateIn: new Date('2026-01-05'),
             trackingNo: '710062350068',
@@ -159,6 +159,7 @@ async function main() {
             sellBase: 12000,
             costMode: 'AUTO' as CostMode
         },
+        // Loss scenario (Sell < Cost)
         {
             dateIn: new Date('2026-01-10'),
             trackingNo: '88899900011122',
@@ -168,9 +169,10 @@ async function main() {
             transport: 'TRUCK' as Transport,
             weightKg: 200,
             cbm: 1.5,
-            sellBase: 8000,
+            sellBase: 8000, // Cost will be ~9300 (1.5*6200), so this is a loss
             costMode: 'AUTO' as CostMode
         },
+        // 1% scenario (Sell = Cost)
         {
             dateIn: new Date('2026-01-12'),
             trackingNo: '99988877766655',
@@ -180,9 +182,10 @@ async function main() {
             transport: 'SHIP' as Transport,
             weightKg: 200,
             cbm: 1,
-            sellBase: 3500,
+            sellBase: 3500, // Exactly matches cost (1*3500)
             costMode: 'AUTO' as CostMode
         },
+        // Manual cost override
         {
             dateIn: new Date('2026-01-15'),
             trackingNo: '11223344556677',
@@ -199,6 +202,7 @@ async function main() {
     ];
 
     for (const data of shipmentData) {
+        // Calculate cost based on rates
         const rateRow = rateCardFull.rows.find(r => r.productType === data.productType);
         if (!rateRow) continue;
 
@@ -221,6 +225,7 @@ async function main() {
             ? CostRule.MANUAL
             : (costCbm >= costKg ? CostRule.CBM : CostRule.KG);
 
+        // Commission logic
         const commissionMethod = data.sellBase === costFinal ? CommissionMethod.ONEPCT : CommissionMethod.DIFF;
         const commissionValue = commissionMethod === CommissionMethod.ONEPCT
             ? data.sellBase * 0.01
@@ -247,6 +252,8 @@ async function main() {
                 commissionMethod,
                 commissionValue,
                 rateCardUsedId: rateCard.id,
+
+                // Helper fields (optional but good for consistency)
                 monthKey: data.dateIn.toISOString().substring(0, 7)
             }
         });
