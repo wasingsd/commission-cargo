@@ -3,37 +3,32 @@
  * Run with: npx prisma db seed
  */
 
-import { PrismaClient, UserRole, ProductType, TransportType, UnitType, RateCardStatus } from '@prisma/client';
-import { hash } from 'bcryptjs';
+import { PrismaClient, Role, ProductType, Transport, Unit, RateCardStatus } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
 async function main() {
     console.log('🌱 Starting database seed...');
 
-    // Create Users
-    const adminPassword = await hash('admin123', 12);
+    // Create Users (without password for now - use NextAuth for auth)
     const admin = await prisma.user.upsert({
         where: { email: 'admin@commission-cargo.com' },
         update: {},
         create: {
             email: 'admin@commission-cargo.com',
             name: 'ผู้ดูแลระบบ',
-            passwordHash: adminPassword,
-            role: UserRole.ADMIN,
+            role: Role.ADMIN,
         },
     });
     console.log('✅ Created admin user:', admin.email);
 
-    const managerPassword = await hash('manager123', 12);
     const manager = await prisma.user.upsert({
         where: { email: 'manager@commission-cargo.com' },
         update: {},
         create: {
             email: 'manager@commission-cargo.com',
             name: 'ผู้จัดการ',
-            passwordHash: managerPassword,
-            role: UserRole.MANAGER,
+            role: Role.MANAGER,
         },
     });
     console.log('✅ Created manager user:', manager.email);
@@ -41,19 +36,19 @@ async function main() {
     // Create Salespeople
     const salespeople = await Promise.all([
         prisma.salesperson.upsert({
-            where: { salesCode: 'S-01' },
+            where: { code: 'S-01' },
             update: {},
-            create: { salesCode: 'S-01', salesName: 'สมชาย ใจดี' },
+            create: { code: 'S-01', name: 'สมชาย ใจดี' },
         }),
         prisma.salesperson.upsert({
-            where: { salesCode: 'S-02' },
+            where: { code: 'S-02' },
             update: {},
-            create: { salesCode: 'S-02', salesName: 'สมหญิง รักงาน' },
+            create: { code: 'S-02', name: 'สมหญิง รักงาน' },
         }),
         prisma.salesperson.upsert({
-            where: { salesCode: 'S-03' },
+            where: { code: 'S-03' },
             update: {},
-            create: { salesCode: 'S-03', salesName: 'ประยุทธ์ ขยัน' },
+            create: { code: 'S-03', name: 'ประยุทธ์ ขยัน' },
         }),
     ]);
     console.log('✅ Created', salespeople.length, 'salespeople');
@@ -61,47 +56,47 @@ async function main() {
     // Create Customers
     const customers = await Promise.all([
         prisma.customer.upsert({
-            where: { customerCode: 'PR-001' },
+            where: { code: 'PR-001' },
             update: {},
             create: {
-                customerCode: 'PR-001',
-                customerName: 'บริษัท เพชรรุ่ง จำกัด',
+                code: 'PR-001',
+                name: 'บริษัท เพชรรุ่ง จำกัด',
                 assignedSalespersonId: salespeople[0].id,
             },
         }),
         prisma.customer.upsert({
-            where: { customerCode: 'PR-002' },
+            where: { code: 'PR-002' },
             update: {},
             create: {
-                customerCode: 'PR-002',
-                customerName: 'ห้างหุ้นส่วน เจริญทอง',
+                code: 'PR-002',
+                name: 'ห้างหุ้นส่วน เจริญทอง',
                 assignedSalespersonId: salespeople[0].id,
             },
         }),
         prisma.customer.upsert({
-            where: { customerCode: 'PR-003' },
+            where: { code: 'PR-003' },
             update: {},
             create: {
-                customerCode: 'PR-003',
-                customerName: 'บริษัท สยามสตาร์ จำกัด',
+                code: 'PR-003',
+                name: 'บริษัท สยามสตาร์ จำกัด',
                 assignedSalespersonId: salespeople[1].id,
             },
         }),
         prisma.customer.upsert({
-            where: { customerCode: 'PR-004' },
+            where: { code: 'PR-004' },
             update: {},
             create: {
-                customerCode: 'PR-004',
-                customerName: 'ร้าน มงคลพาณิชย์',
+                code: 'PR-004',
+                name: 'ร้าน มงคลพาณิชย์',
                 assignedSalespersonId: salespeople[1].id,
             },
         }),
         prisma.customer.upsert({
-            where: { customerCode: 'PR-005' },
+            where: { code: 'PR-005' },
             update: {},
             create: {
-                customerCode: 'PR-005',
-                customerName: 'บริษัท ไทยเจริญ จำกัด',
+                code: 'PR-005',
+                name: 'บริษัท ไทยเจริญ จำกัด',
                 assignedSalespersonId: salespeople[2].id,
             },
         }),
@@ -112,36 +107,35 @@ async function main() {
     const rateCard = await prisma.rateCard.create({
         data: {
             name: 'เรทมาตรฐาน 2026-01',
-            description: 'เรทมาตรฐานสำหรับเดือนมกราคม 2569',
             effectiveFrom: new Date('2026-01-01'),
             status: RateCardStatus.ACTIVE,
             createdById: admin.id,
-            rateRows: {
+            rows: {
                 create: [
                     // GENERAL - TRUCK
-                    { productType: ProductType.GENERAL, transport: TransportType.TRUCK, unit: UnitType.CBM, rateValue: 5500 },
-                    { productType: ProductType.GENERAL, transport: TransportType.TRUCK, unit: UnitType.KG, rateValue: 55 },
+                    { productType: ProductType.GENERAL, transport: Transport.TRUCK, unit: Unit.CBM, rateValue: 5500 },
+                    { productType: ProductType.GENERAL, transport: Transport.TRUCK, unit: Unit.KG, rateValue: 55 },
                     // GENERAL - SHIP
-                    { productType: ProductType.GENERAL, transport: TransportType.SHIP, unit: UnitType.CBM, rateValue: 4500 },
-                    { productType: ProductType.GENERAL, transport: TransportType.SHIP, unit: UnitType.KG, rateValue: 45 },
-                    // TIS - TRUCK
-                    { productType: ProductType.TIS, transport: TransportType.TRUCK, unit: UnitType.CBM, rateValue: 6500 },
-                    { productType: ProductType.TIS, transport: TransportType.TRUCK, unit: UnitType.KG, rateValue: 65 },
-                    // TIS - SHIP
-                    { productType: ProductType.TIS, transport: TransportType.SHIP, unit: UnitType.CBM, rateValue: 5500 },
-                    { productType: ProductType.TIS, transport: TransportType.SHIP, unit: UnitType.KG, rateValue: 55 },
+                    { productType: ProductType.GENERAL, transport: Transport.SHIP, unit: Unit.CBM, rateValue: 4500 },
+                    { productType: ProductType.GENERAL, transport: Transport.SHIP, unit: Unit.KG, rateValue: 45 },
+                    // TISI - TRUCK
+                    { productType: ProductType.TISI, transport: Transport.TRUCK, unit: Unit.CBM, rateValue: 6500 },
+                    { productType: ProductType.TISI, transport: Transport.TRUCK, unit: Unit.KG, rateValue: 65 },
+                    // TISI - SHIP
+                    { productType: ProductType.TISI, transport: Transport.SHIP, unit: Unit.CBM, rateValue: 5500 },
+                    { productType: ProductType.TISI, transport: Transport.SHIP, unit: Unit.KG, rateValue: 55 },
                     // FDA - TRUCK
-                    { productType: ProductType.FDA, transport: TransportType.TRUCK, unit: UnitType.CBM, rateValue: 7000 },
-                    { productType: ProductType.FDA, transport: TransportType.TRUCK, unit: UnitType.KG, rateValue: 70 },
+                    { productType: ProductType.FDA, transport: Transport.TRUCK, unit: Unit.CBM, rateValue: 7000 },
+                    { productType: ProductType.FDA, transport: Transport.TRUCK, unit: Unit.KG, rateValue: 70 },
                     // FDA - SHIP
-                    { productType: ProductType.FDA, transport: TransportType.SHIP, unit: UnitType.CBM, rateValue: 6000 },
-                    { productType: ProductType.FDA, transport: TransportType.SHIP, unit: UnitType.KG, rateValue: 60 },
+                    { productType: ProductType.FDA, transport: Transport.SHIP, unit: Unit.CBM, rateValue: 6000 },
+                    { productType: ProductType.FDA, transport: Transport.SHIP, unit: Unit.KG, rateValue: 60 },
                     // SPECIAL - TRUCK
-                    { productType: ProductType.SPECIAL, transport: TransportType.TRUCK, unit: UnitType.CBM, rateValue: 8000 },
-                    { productType: ProductType.SPECIAL, transport: TransportType.TRUCK, unit: UnitType.KG, rateValue: 80 },
+                    { productType: ProductType.SPECIAL, transport: Transport.TRUCK, unit: Unit.CBM, rateValue: 8000 },
+                    { productType: ProductType.SPECIAL, transport: Transport.TRUCK, unit: Unit.KG, rateValue: 80 },
                     // SPECIAL - SHIP
-                    { productType: ProductType.SPECIAL, transport: TransportType.SHIP, unit: UnitType.CBM, rateValue: 7000 },
-                    { productType: ProductType.SPECIAL, transport: TransportType.SHIP, unit: UnitType.KG, rateValue: 70 },
+                    { productType: ProductType.SPECIAL, transport: Transport.SHIP, unit: Unit.CBM, rateValue: 7000 },
+                    { productType: ProductType.SPECIAL, transport: Transport.SHIP, unit: Unit.KG, rateValue: 70 },
                 ],
             },
         },

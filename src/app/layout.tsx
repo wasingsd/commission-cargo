@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { Providers } from "@/components/Providers";
 
 export const metadata: Metadata = {
   title: "Commission Cargo - ระบบคำนวณค่าคอมมิชชั่นขนส่ง",

@@ -91,7 +91,99 @@ export function formatNumber(num: number | null | undefined, digits: number = 2)
     }).format(num);
 }
 
-export function calculateFull(shipment: any): any {
-    // Placeholder implementation to satisfy build
-    return shipment;
+/**
+ * Safely parse a string into a number
+ * Returns 0 if the value cannot be parsed
+ */
+export function safeParseNumber(value: string | number | null | undefined): number {
+    if (value === null || value === undefined || value === '') {
+        return 0;
+    }
+    if (typeof value === 'number') {
+        return isNaN(value) ? 0 : value;
+    }
+    const parsed = parseFloat(value.replace(/,/g, ''));
+    return isNaN(parsed) ? 0 : parsed;
+}
+
+/**
+ * Parse tracking number into base and suffix
+ * Example: "TRK-001-A" -> { base: "TRK-001", suffix: 1 }
+ * Example: "TRK-001" -> { base: "TRK-001", suffix: null }
+ */
+export function parseTrackingNumber(trackingNo: string): { base: string; suffix: number | null } {
+    if (!trackingNo) {
+        return { base: '', suffix: null };
+    }
+
+    // Check if tracking number ends with a letter suffix (e.g., -A, -B, -C)
+    const suffixMatch = trackingNo.match(/^(.+)-([A-Z])$/i);
+    if (suffixMatch) {
+        const base = suffixMatch[1];
+        const letter = suffixMatch[2].toUpperCase();
+        // Convert letter to number (A=1, B=2, etc.)
+        const suffix = letter.charCodeAt(0) - 'A'.charCodeAt(0) + 1;
+        return { base, suffix };
+    }
+
+    // Check if tracking number ends with a numeric suffix (e.g., -1, -2)
+    const numSuffixMatch = trackingNo.match(/^(.+)-(\d+)$/);
+    if (numSuffixMatch) {
+        return {
+            base: numSuffixMatch[1],
+            suffix: parseInt(numSuffixMatch[2], 10)
+        };
+    }
+
+    // No suffix found
+    return { base: trackingNo, suffix: null };
+}
+
+interface ShipmentInput {
+    cbm?: number | null;
+    weightKg?: number | null;
+    sellBase?: number | null;
+    costMode?: 'AUTO' | 'MANUAL';
+    costManual?: number | null;
+}
+
+interface RateInput {
+    rateCbm: number;
+    rateKg: number;
+}
+
+interface FullCalculationResult extends CostResult, CommissionResult {
+    // Combined result from cost and commission calculation
+}
+
+export function calculateFull(shipment: ShipmentInput, rates: RateInput): FullCalculationResult {
+    const costResult = computeCost({
+        cbm: shipment.cbm,
+        weightKg: shipment.weightKg,
+        rateCbm: rates.rateCbm,
+        rateKg: rates.rateKg
+    });
+
+    // If manual cost mode, use manual cost
+    let finalCost = costResult.costFinal;
+    let finalCostRule = costResult.costRule;
+
+    if (shipment.costMode === 'MANUAL' && shipment.costManual !== null && shipment.costManual !== undefined) {
+        finalCost = shipment.costManual;
+        finalCostRule = 'MANUAL';
+    }
+
+    const commissionResult = computeCommission(
+        shipment.sellBase ?? 0,
+        finalCost
+    );
+
+    return {
+        costCbm: costResult.costCbm,
+        costKg: costResult.costKg,
+        costFinal: finalCost,
+        costRule: finalCostRule,
+        commissionMethod: commissionResult.commissionMethod,
+        commissionValue: commissionResult.commissionValue
+    };
 }

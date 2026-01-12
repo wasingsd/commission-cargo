@@ -22,13 +22,6 @@ export async function GET(
                 customer: true,
                 salesperson: true,
                 rateCardUsed: true,
-                createdBy: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true,
-                    },
-                },
             },
         });
 
@@ -105,17 +98,17 @@ export async function PATCH(
             // Get active rate card or use the one already assigned
             const rateCard = await prisma.rateCard.findFirst({
                 where: { status: 'ACTIVE' },
-                include: { rateRows: true },
+                include: { rows: true },
             });
 
             if (rateCard) {
                 const productType = body.productType || current.productType;
                 const transport = body.transport || current.transport;
 
-                const rateCbm = rateCard.rateRows.find(
+                const rateCbm = rateCard.rows.find(
                     (r) => r.productType === productType && r.transport === transport && r.unit === 'CBM'
                 );
-                const rateKg = rateCard.rateRows.find(
+                const rateKg = rateCard.rows.find(
                     (r) => r.productType === productType && r.transport === transport && r.unit === 'KG'
                 );
 

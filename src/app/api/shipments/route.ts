@@ -106,8 +106,6 @@ export async function POST(req: Request) {
 
                 commissionMethod: commResult.commissionMethod,
                 commissionValue: commResult.commissionValue,
-
-                createdById: session.user.id
             }
         });
 

@@ -17,7 +17,7 @@ export async function GET(
         const rateCard = await prisma.rateCard.findUnique({
             where: { id },
             include: {
-                rateRows: true,
+                rows: true,
                 createdBy: {
                     select: {
                         id: true,
@@ -60,7 +60,7 @@ export async function PATCH(
         // Get current state for audit log
         const current = await prisma.rateCard.findUnique({
             where: { id },
-            include: { rateRows: true },
+            include: { rows: true },
         });
 
         if (!current) {
@@ -75,13 +75,12 @@ export async function PATCH(
             where: { id },
             data: {
                 ...(name && { name }),
-                ...(description !== undefined && { description }),
                 ...(effectiveFrom && { effectiveFrom: new Date(effectiveFrom) }),
                 ...(effectiveTo !== undefined && { effectiveTo: effectiveTo ? new Date(effectiveTo) : null }),
                 ...(status && { status }),
             },
             include: {
-                rateRows: true,
+                rows: true,
             },
         });
 

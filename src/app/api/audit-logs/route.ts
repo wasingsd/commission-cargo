@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
         const logs = await prisma.auditLog.findMany({
             where,
             include: {
-                actor: {
+                actorUser: {
                     select: {
                         id: true,
                         name: true,

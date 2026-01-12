@@ -53,6 +53,7 @@ export async function GET(request: NextRequest) {
             }>();
 
             shipments.forEach((s) => {
+                if (!s.customerId || !s.customer) return; // Skip if no customer
                 const key = s.customerId;
                 const existing = customerMap.get(key);
                 if (existing) {
@@ -63,8 +64,8 @@ export async function GET(request: NextRequest) {
                 } else {
                     customerMap.set(key, {
                         customerId: s.customerId,
-                        customerCode: s.customer.customerCode,
-                        customerName: s.customer.customerName,
+                        customerCode: s.customer.code,
+                        customerName: s.customer.name,
                         totalShipments: 1,
                         totalSellBase: Number(s.sellBase),
                         totalCostFinal: Number(s.costFinal),
@@ -110,8 +111,8 @@ export async function GET(request: NextRequest) {
                 } else {
                     salesMap.set(key, {
                         salespersonId: s.salespersonId,
-                        salesCode: s.salesperson.salesCode,
-                        salesName: s.salesperson.salesName,
+                        salesCode: s.salesperson.code,
+                        salesName: s.salesperson.name,
                         totalShipments: 1,
                         totalSellBase: Number(s.sellBase),
                         totalCostFinal: Number(s.costFinal),
@@ -144,6 +145,7 @@ export async function GET(request: NextRequest) {
             }>();
 
             shipments.forEach((s) => {
+                if (!s.dateIn) return; // Skip if no dateIn
                 const monthKey = s.dateIn.toISOString().substring(0, 7); // YYYY-MM
                 const existing = monthMap.get(monthKey);
                 if (existing) {
