@@ -19,6 +19,11 @@ export interface CommissionResult {
     commissionValue: number;
 }
 
+// Helper to round to 2 decimal places
+function round2(num: number): number {
+    return Math.round((num + Number.EPSILON) * 100) / 100;
+}
+
 export function computeCost(inputs: CalcInputs): CostResult {
     const { weightKg = 0, cbm = 0, rateCbm = 0, rateKg = 0 } = inputs;
 
@@ -34,12 +39,14 @@ export function computeCost(inputs: CalcInputs): CostResult {
         };
     }
 
-    const costCbm = v * (rateCbm ?? 0);
-    const costKg = w * (rateKg ?? 0);
+    // Per logic doc 5.2.4: Round inputs * rates to 2 decimals
+    const costCbm = round2(v * (rateCbm ?? 0));
+    const costKg = round2(w * (rateKg ?? 0));
 
     let costFinal = 0;
     let costRule: CostRule = 'NONE';
 
+    // Per logic doc 5.2.5: If cost_cbm >= cost_kg -> choose CBM
     if (costCbm >= costKg) {
         costFinal = costCbm;
         costRule = 'CBM';
@@ -60,15 +67,17 @@ export function computeCommission(sellBase: number, costFinal: number): Commissi
     const epsilon = 0.001;
     const diff = sellBase - costFinal;
 
+    // Per logic doc 6.2.3: If sell_base === cost_final -> 1%
     if (Math.abs(diff) < epsilon) {
         return {
             commissionMethod: 'ONEPCT',
-            commissionValue: sellBase * 0.01
+            commissionValue: round2(sellBase * 0.01)
         };
     } else {
+        // Per logic doc 6.2.4 & 203: Else -> DIFF (can be negative)
         return {
             commissionMethod: 'DIFF',
-            commissionValue: diff
+            commissionValue: round2(diff)
         };
     }
 }
