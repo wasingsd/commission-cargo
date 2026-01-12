@@ -53,21 +53,28 @@ export async function POST(req: Request) {
         // We can use a transaction, but for many rows it might lock.
         // Loop update.
         for (const sh of shipments) {
-            // Find relevant rows for this shipment properties
-            // Note: productType logic must match enum values in DB.
-            const subRows = rateRows.filter(r =>
-                r.productType === sh.productType &&
-                r.transport === sh.transport
-            );
+            // Find rate row for this product type
+            const rateRow = rateRows.find(r => r.productType === sh.productType);
 
-            const rateCbmVal = subRows.find(r => r.unit === 'CBM')?.rateValue || 0;
-            const rateKgVal = subRows.find(r => r.unit === 'KG')?.rateValue || 0;
+            let rateCbm = 0;
+            let rateKg = 0;
+
+            if (rateRow) {
+                // Select rates based on transport type
+                if (sh.transport === 'TRUCK') {
+                    rateCbm = Number(rateRow.truckCbm);
+                    rateKg = Number(rateRow.truckKg);
+                } else if (sh.transport === 'SHIP') {
+                    rateCbm = Number(rateRow.shipCbm);
+                    rateKg = Number(rateRow.shipKg);
+                }
+            }
 
             const costRes = computeCost({
                 weightKg: Number(sh.weightKg),
                 cbm: Number(sh.cbm),
-                rateCbm: Number(rateCbmVal),
-                rateKg: Number(rateKgVal)
+                rateCbm,
+                rateKg
             });
 
             // Assuming sellBase doesn't change

@@ -105,12 +105,22 @@ export async function PATCH(
                 const productType = body.productType || current.productType;
                 const transport = body.transport || current.transport;
 
-                const rateCbm = rateCard.rows.find(
-                    (r) => r.productType === productType && r.transport === transport && r.unit === 'CBM'
-                );
-                const rateKg = rateCard.rows.find(
-                    (r) => r.productType === productType && r.transport === transport && r.unit === 'KG'
-                );
+                // Find rate row for this product type
+                const rateRow = rateCard.rows.find(r => r.productType === productType);
+
+                let rateCbm = 0;
+                let rateKg = 0;
+
+                if (rateRow) {
+                    // Select rates based on transport type
+                    if (transport === 'TRUCK') {
+                        rateCbm = Number(rateRow.truckCbm);
+                        rateKg = Number(rateRow.truckKg);
+                    } else if (transport === 'SHIP') {
+                        rateCbm = Number(rateRow.shipCbm);
+                        rateKg = Number(rateRow.shipKg);
+                    }
+                }
 
                 const calculation = calculateFull(
                     {
@@ -123,8 +133,8 @@ export async function PATCH(
                             : (current.costManual ? Number(current.costManual) : undefined),
                     },
                     {
-                        rateCbm: rateCbm ? Number(rateCbm.rateValue) : 0,
-                        rateKg: rateKg ? Number(rateKg.rateValue) : 0,
+                        rateCbm,
+                        rateKg,
                     }
                 );
 

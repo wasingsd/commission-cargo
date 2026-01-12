@@ -66,6 +66,7 @@ enum AuditAction {
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
+  password  String?  // Hashed password
   name      String?
   role      Role     @default(STAFF)
   createdAt DateTime @default(now())

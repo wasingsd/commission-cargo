@@ -75,7 +75,7 @@ export function DashboardView() {
                                         <Cell key={i} fill={COLORS[i % COLORS.length]} />
                                     ))}
                                 </Pie>
-                                <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                                <Tooltip formatter={(v: any) => formatCurrency(Number(v))} />
                                 <Legend />
                             </PieChart>
                         </ResponsiveContainer>
@@ -91,7 +91,7 @@ export function DashboardView() {
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                                 <XAxis dataKey="month" tick={{ fontSize: 12 }} />
                                 <YAxis tick={{ fontSize: 12 }} />
-                                <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                                <Tooltip formatter={(v: any) => formatCurrency(Number(v))} />
                                 <Legend />
                                 <Bar dataKey="diff" name="DIFF" stackId="a" fill={COLORS[0]} radius={[0, 0, 4, 4]} />
                                 <Bar dataKey="onePct" name="1%" stackId="a" fill={COLORS[1]} radius={[4, 4, 0, 0]} />
