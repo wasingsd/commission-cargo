@@ -3,7 +3,7 @@
  * Run with: npx prisma db seed
  */
 
-import { PrismaClient, Role, ProductType, Transport, Unit, RateCardStatus } from '@prisma/client';
+import { PrismaClient, Role, ProductType, RateCardStatus } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -112,30 +112,26 @@ async function main() {
             createdById: admin.id,
             rows: {
                 create: [
-                    // GENERAL - TRUCK
-                    { productType: ProductType.GENERAL, transport: Transport.TRUCK, unit: Unit.CBM, rateValue: 5500 },
-                    { productType: ProductType.GENERAL, transport: Transport.TRUCK, unit: Unit.KG, rateValue: 55 },
-                    // GENERAL - SHIP
-                    { productType: ProductType.GENERAL, transport: Transport.SHIP, unit: Unit.CBM, rateValue: 4500 },
-                    { productType: ProductType.GENERAL, transport: Transport.SHIP, unit: Unit.KG, rateValue: 45 },
-                    // TISI - TRUCK
-                    { productType: ProductType.TISI, transport: Transport.TRUCK, unit: Unit.CBM, rateValue: 6500 },
-                    { productType: ProductType.TISI, transport: Transport.TRUCK, unit: Unit.KG, rateValue: 65 },
-                    // TISI - SHIP
-                    { productType: ProductType.TISI, transport: Transport.SHIP, unit: Unit.CBM, rateValue: 5500 },
-                    { productType: ProductType.TISI, transport: Transport.SHIP, unit: Unit.KG, rateValue: 55 },
-                    // FDA - TRUCK
-                    { productType: ProductType.FDA, transport: Transport.TRUCK, unit: Unit.CBM, rateValue: 7000 },
-                    { productType: ProductType.FDA, transport: Transport.TRUCK, unit: Unit.KG, rateValue: 70 },
-                    // FDA - SHIP
-                    { productType: ProductType.FDA, transport: Transport.SHIP, unit: Unit.CBM, rateValue: 6000 },
-                    { productType: ProductType.FDA, transport: Transport.SHIP, unit: Unit.KG, rateValue: 60 },
-                    // SPECIAL - TRUCK
-                    { productType: ProductType.SPECIAL, transport: Transport.TRUCK, unit: Unit.CBM, rateValue: 8000 },
-                    { productType: ProductType.SPECIAL, transport: Transport.TRUCK, unit: Unit.KG, rateValue: 80 },
-                    // SPECIAL - SHIP
-                    { productType: ProductType.SPECIAL, transport: Transport.SHIP, unit: Unit.CBM, rateValue: 7000 },
-                    { productType: ProductType.SPECIAL, transport: Transport.SHIP, unit: Unit.KG, rateValue: 70 },
+                    {
+                        productType: ProductType.GENERAL,
+                        truckCbm: 5500, truckKg: 55,
+                        shipCbm: 4500, shipKg: 45
+                    },
+                    {
+                        productType: ProductType.TISI,
+                        truckCbm: 6500, truckKg: 65,
+                        shipCbm: 5500, shipKg: 55
+                    },
+                    {
+                        productType: ProductType.FDA,
+                        truckCbm: 7000, truckKg: 70,
+                        shipCbm: 6000, shipKg: 60
+                    },
+                    {
+                        productType: ProductType.SPECIAL,
+                        truckCbm: 8000, truckKg: 80,
+                        shipCbm: 7000, shipKg: 70
+                    },
                 ],
             },
         },

@@ -34,44 +34,72 @@ export async function POST(req: Request) {
         }
 
         // 2. Fetch Rates
-        const relevantRows = await prisma.rateRow.findMany({
-            where: {
-                rateCardId: rateCardId,
-                productType: data.productType,
-                transport: data.transport
-            }
-        });
+        // 2. Fetch Rates (Only if AUTO or just for reference)
+        let rateCbm = 0;
+        let rateKg = 0;
+        let rateRow = null;
 
-        const rateCbmRow = relevantRows.find(r => r.unit === 'CBM');
-        const rateKgRow = relevantRows.find(r => r.unit === 'KG');
+        if (rateCardId) {
+            rateRow = await prisma.rateRow.findFirst({
+                where: {
+                    rateCardId: rateCardId,
+                    productType: data.productType
+                }
+            });
+
+            if (rateRow) {
+                // Select rates based on Transport
+                if (data.transport === 'TRUCK') {
+                    rateCbm = Number(rateRow.truckCbm);
+                    rateKg = Number(rateRow.truckKg);
+                } else if (data.transport === 'SHIP') {
+                    rateCbm = Number(rateRow.shipCbm);
+                    rateKg = Number(rateRow.shipKg);
+                }
+            }
+        }
 
         // 3. Calculate Cost
-        // Note: CostMode. If MANUAL, user provides costManual. 
-        // But field default is AUTO. Logic says Cost(AUTO).
-        // If user meant manual cost, they should probably send costMode=MANUAL.
-        // The schema validator doesn't strictly check costMode but the DB default is AUTO.
-        // Let's assume AUTO unless specified?
+        // Logic from MASTER_LOGIC.md 5.2.A & 5.2.B
+        let costResult;
 
-        // For now, calculate AUTO values anyway as reference? Or just use provided.
-        const costResult = computeCost({
-            weightKg: data.weightKg,
-            cbm: data.cbm,
-            rateCbm: Number(rateCbmRow?.rateValue || 0),
-            rateKg: Number(rateKgRow?.rateValue || 0)
-        });
+        // If Manual mode is requested AND manual cost is provided
+        if (data.costMode === 'MANUAL' && data.costManual !== undefined) {
+            // We can use computeCost for manual too if we adapt it, but simpler to just set values
+            // Or better, let's keep the logic consistent.
+            // Wait, computeCost in calc.ts is purely for AUTO calculation.
+            // We handle MANUAL selection here.
 
-        let finalCost = costResult.costFinal;
-        let finalRule = costResult.costRule;
-        let costCbm = costResult.costCbm;
-        let costKg = costResult.costKg;
+            // Still calculate auto cost for reference if rates available? 
+            // Logic doesn't mandate it, but it's good practice.
+            const autoCalc = computeCost({
+                weightKg: data.weightKg,
+                cbm: data.cbm,
+                rateCbm: rateCbm,
+                rateKg: rateKg
+            });
 
-        // If there is a manual cost override logic (not explicitly in blueprint 4.2 but implicitly via CostMode enum)
-        // The blueprint says "Cost (AUTO)" section.
-        // "costManual" field exists.
-        // Let's stick to auto for this endpoint as per blueprint "4.2 Cost (AUTO)"
+            costResult = {
+                costCbm: autoCalc.costCbm, // Keep reference
+                costKg: autoCalc.costKg,   // Keep reference
+                costFinal: data.costManual,
+                costRule: 'MANUAL' as const
+            };
+
+        } else {
+            // AUTO Mode
+            costResult = computeCost({
+                weightKg: data.weightKg,
+                cbm: data.cbm,
+                rateCbm: rateCbm,
+                rateKg: rateKg
+            });
+        }
+
+        const { costFinal, costRule, costCbm, costKg } = costResult;
 
         // 4. Commission
-        const commResult = computeCommission(data.sellBase || 0, finalCost);
+        const commResult = computeCommission(data.sellBase || 0, costFinal);
 
         // 5. Tracking
         const { base, suffix } = parseTracking(data.trackingNo);
@@ -96,13 +124,15 @@ export async function POST(req: Request) {
 
                 sellBase: data.sellBase,
 
-                costMode: 'AUTO',
+                costMode: data.costMode || 'AUTO',
+                costManual: data.costManual,
+
                 rateCardUsedId: rateCardId,
 
                 costCbm: costCbm,
                 costKg: costKg,
-                costFinal: finalCost,
-                costRule: finalRule,
+                costFinal: costFinal,
+                costRule: costRule,
 
                 commissionMethod: commResult.commissionMethod,
                 commissionValue: commResult.commissionValue,

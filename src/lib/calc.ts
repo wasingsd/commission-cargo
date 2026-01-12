@@ -125,15 +125,8 @@ export function parseTrackingNumber(trackingNo: string): { base: string; suffix:
         return { base: '', suffix: null };
     }
 
-    // Check if tracking number ends with a letter suffix (e.g., -A, -B, -C)
-    const suffixMatch = trackingNo.match(/^(.+)-([A-Z])$/i);
-    if (suffixMatch) {
-        const base = suffixMatch[1];
-        const letter = suffixMatch[2].toUpperCase();
-        // Convert letter to number (A=1, B=2, etc.)
-        const suffix = letter.charCodeAt(0) - 'A'.charCodeAt(0) + 1;
-        return { base, suffix };
-    }
+    // Per Master Logic 8.2 (5): Alphanumeric suffixes (e.g. -A, -B) are considered part of the Base.
+    // Only numeric suffixes (-1, -2) are separated.
 
     // Check if tracking number ends with a numeric suffix (e.g., -1, -2)
     const numSuffixMatch = trackingNo.match(/^(.+)-(\d+)$/);

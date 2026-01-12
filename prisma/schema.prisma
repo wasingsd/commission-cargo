@@ -120,11 +120,14 @@ model RateRow {
   rateCard   RateCard   @relation(fields: [rateCardId], references: [id], onDelete: Cascade)
 
   productType ProductType
-  transport   Transport
-  unit        Unit
-  rateValue   Decimal    @db.Decimal(12,2)
 
-  @@unique([rateCardId, productType, transport, unit])
+  // Rates per transport and unit
+  truckCbm    Decimal    @default(0) @db.Decimal(12,2)
+  truckKg     Decimal    @default(0) @db.Decimal(12,2)
+  shipCbm     Decimal    @default(0) @db.Decimal(12,2)
+  shipKg      Decimal    @default(0) @db.Decimal(12,2)
+
+  @@unique([rateCardId, productType])
 }
 
 model Shipment {

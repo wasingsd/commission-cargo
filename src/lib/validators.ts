@@ -1,11 +1,12 @@
 import { z } from 'zod';
-import { ProductType, Transport, Unit } from '@prisma/client';
+import { ProductType, Transport } from '@prisma/client';
 
 export const RateRowSchema = z.object({
     productType: z.nativeEnum(ProductType),
-    transport: z.nativeEnum(Transport),
-    unit: z.nativeEnum(Unit),
-    rateValue: z.number().min(0)
+    truckCbm: z.number().min(0).default(0),
+    truckKg: z.number().min(0).default(0),
+    shipCbm: z.number().min(0).default(0),
+    shipKg: z.number().min(0).default(0),
 });
 
 export const CreateRateCardSchema = z.object({
@@ -24,6 +25,7 @@ export const CreateShipmentSchema = z.object({
     weightKg: z.number().optional(),
     cbm: z.number().optional(),
     sellBase: z.number().optional(),
+    costMode: z.enum(['AUTO', 'MANUAL']).optional().default('AUTO'),
     costManual: z.number().optional(),
     rateCardUsedId: z.string().optional()
 });
