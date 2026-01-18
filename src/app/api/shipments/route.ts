@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { CreateShipmentSchema } from '@/lib/validators';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { computeCommission, computeCost } from '@/lib/calc';
 import { parseTracking } from '@/lib/tracking';
+import { ProductType, Transport } from '@prisma/client';
 
 export async function POST(req: Request) {
     const session = await getServerSession(authOptions);
@@ -12,12 +12,46 @@ export async function POST(req: Request) {
 
     try {
         const body = await req.json();
-        const parsed = CreateShipmentSchema.safeParse(body);
-        if (!parsed.success) {
-            return NextResponse.json({ error: parsed.error }, { status: 400 });
+
+        // Extract and validate basic fields
+        const data = {
+            dateIn: body.dateIn,
+            trackingNo: body.trackingNo,
+            productType: body.productType as ProductType,
+            transport: body.transport as Transport,
+            weightKg: body.weightKg || 0,
+            cbm: body.cbm || 0,
+            sellBase: body.sellBase || 0,
+            costMode: body.costMode || 'AUTO',
+            costManual: body.costManual,
+            rateCardUsedId: body.rateCardUsedId,
+            customerId: body.customerId,
+            salespersonId: body.salespersonId,
+        };
+
+        // Lookup Customer by code if customerId not provided
+        if (!data.customerId && body.customerCode) {
+            const customer = await prisma.customer.findFirst({
+                where: { code: body.customerCode }
+            });
+            if (customer) {
+                data.customerId = customer.id;
+                // Auto-assign salesperson from customer if not specified
+                if (!data.salespersonId && customer.assignedSalespersonId) {
+                    data.salespersonId = customer.assignedSalespersonId;
+                }
+            }
         }
 
-        const data = parsed.data;
+        // Lookup Salesperson by code if salespersonId not provided
+        if (!data.salespersonId && body.salesCode) {
+            const salesperson = await prisma.salesperson.findFirst({
+                where: { code: body.salesCode }
+            });
+            if (salesperson) {
+                data.salespersonId = salesperson.id;
+            }
+        }
 
         // 1. Determine Rate Card
         let rateCardId = data.rateCardUsedId;
@@ -173,5 +207,5 @@ export async function GET(req: Request) {
         orderBy: { createdAt: 'desc' }
     });
 
-    return NextResponse.json(shipments);
+    return NextResponse.json({ success: true, data: shipments });
 }

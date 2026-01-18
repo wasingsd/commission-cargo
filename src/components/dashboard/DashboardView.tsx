@@ -45,7 +45,7 @@ export function DashboardView() {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div>
                     <h1 className="text-3xl font-bold text-slate-900 tracking-tight">สรุปภาพรวม <span className="text-slate-400">การดำเนินงาน</span></h1>
-                    <p className="text-sm text-slate-400 mt-1">ยินดีต้อนรับกลับสู่ระบบจัดการ PR Cargo</p>
+                    <p className="text-sm text-slate-400 mt-1">ยินดีต้อนรับกลับสู่ระบบจัดการ Cargo</p>
                 </div>
 
                 <div className="flex items-center gap-3">

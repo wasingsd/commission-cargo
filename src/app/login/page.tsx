@@ -61,7 +61,7 @@ export default function LoginPage() {
                         </div>
                         <h1 className="text-3xl font-bold text-white tracking-tight text-center">
                             ยินดีต้อนรับสู่ <br />
-                            <span className="text-accent-500">PR CARGO</span>
+                            <span className="text-accent-500">CARGO</span>
                         </h1>
                         <p className="text-slate-400 text-xs font-semibold mt-4 flex items-center gap-2">
                             ระบบคํานวณค่าคอมมิชชั่นอัจฉริยะ
@@ -131,7 +131,7 @@ export default function LoginPage() {
                     <div className="mt-10 pt-8 border-t border-white/5 text-center">
                         <p className="text-[11px] font-semibold text-slate-500 leading-relaxed">
                             ระบบรักษาความปลอดภัยมาตรฐานระดับองค์กร <br />
-                            © 2026 PR Cargo Logic Systems
+                            © 2026 Cargo Logic Systems
                         </p>
                     </div>
                 </div>

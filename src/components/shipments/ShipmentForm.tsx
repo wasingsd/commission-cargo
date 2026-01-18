@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { formatNumber, computeCost, parseTrackingNumber } from '@/lib/calc';
+import { formatNumber, computeCost, parseTrackingNumber, computeCommission } from '@/lib/calc';
 import { ProductType, Transport } from '@prisma/client';
 import { Calculator, Truck, Ship, AlertTriangle } from 'lucide-react';
 
@@ -28,19 +28,22 @@ export function ShipmentForm({ onClose, onSuccess, initialData }: ShipmentFormPr
     const [activeRates, setActiveRates] = useState<RateRowPreview[]>([]);
     const [ratesLoaded, setRatesLoaded] = useState(false);
 
+    const [salespersons, setSalespersons] = useState<any[]>([]);
+
     const [formData, setFormData] = useState({
-        dateIn: new Date().toISOString().split('T')[0],
-        customerCode: '',
-        salesCode: '',
-        trackingNo: '',
-        productType: 'GENERAL' as ProductType,
-        transport: 'TRUCK' as Transport,
-        weightKg: '',
-        cbm: '',
-        sellBase: '',
-        costMode: 'AUTO',
-        costManual: '',
-        note: ''
+        dateIn: initialData?.dateIn ? new Date(initialData.dateIn).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        customerCode: initialData?.customer?.code || initialData?.customerCode || '',
+        salesCode: initialData?.salesperson?.code || '',
+        salespersonId: initialData?.salespersonId || '',
+        trackingNo: initialData?.trackingNo || '',
+        productType: (initialData?.productType as ProductType) || 'GENERAL',
+        transport: (initialData?.transport as Transport) || 'TRUCK',
+        weightKg: initialData?.weightKg?.toString() || '',
+        cbm: initialData?.cbm?.toString() || '',
+        sellBase: initialData?.sellBase?.toString() || '',
+        costMode: initialData?.costMode || 'AUTO',
+        costManual: initialData?.costManual?.toString() || '',
+        note: initialData?.note || ''
     });
 
     // Fetch Rates on Mount
@@ -70,6 +73,22 @@ export function ShipmentForm({ onClose, onSuccess, initialData }: ShipmentFormPr
         loadRates();
     }, []);
 
+    // Fetch Salespersons
+    useEffect(() => {
+        async function loadSalespersons() {
+            try {
+                const res = await fetch('/api/salespersons');
+                const json = await res.json();
+                if (json.success) {
+                    setSalespersons(json.data.filter((s: any) => s.active));
+                }
+            } catch (e) {
+                console.error("Failed to load salespersons", e);
+            }
+        }
+        loadSalespersons();
+    }, []);
+
     // Real-time Preview Calculation
     const getPreview = () => {
         const w = parseFloat(formData.weightKg) || 0;
@@ -82,7 +101,9 @@ export function ShipmentForm({ onClose, onSuccess, initialData }: ShipmentFormPr
                 costKg: 0,
                 finalCost: manual,
                 rule: 'MANUAL',
-                isLoss: (parseFloat(formData.sellBase) || 0) < manual
+                isLoss: (parseFloat(formData.sellBase) || 0) < manual,
+                commission: computeCommission(parseFloat(formData.sellBase) || 0, manual).commissionValue,
+                commissionMethod: computeCommission(parseFloat(formData.sellBase) || 0, manual).commissionMethod,
             };
         }
 
@@ -108,13 +129,18 @@ export function ShipmentForm({ onClose, onSuccess, initialData }: ShipmentFormPr
         });
 
         const sell = parseFloat(formData.sellBase) || 0;
+        const finalCost = result.costFinal;
+
+        const commResult = computeCommission(sell, finalCost);
 
         return {
             costCbm: result.costCbm,
             costKg: result.costKg,
-            finalCost: result.costFinal,
+            finalCost: finalCost,
             rule: result.costRule,
-            isLoss: sell > 0 && sell < result.costFinal,
+            isLoss: sell > 0 && sell < finalCost,
+            commission: commResult.commissionValue,
+            commissionMethod: commResult.commissionMethod,
             rates: { rateCbm, rateKg } // for debug/info
         };
     };
@@ -122,13 +148,19 @@ export function ShipmentForm({ onClose, onSuccess, initialData }: ShipmentFormPr
     const preview = getPreview();
     const trackingInfo = parseTrackingNumber(formData.trackingNo);
 
+    const [error, setError] = useState<string | null>(null);
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
+        setError(null);
 
         try {
-            const res = await fetch('/api/shipments', {
-                method: 'POST',
+            const url = initialData ? `/api/shipments/${initialData.id}` : '/api/shipments';
+            const method = initialData ? 'PATCH' : 'POST';
+
+            const res = await fetch(url, {
+                method: method,
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     ...formData,
@@ -136,6 +168,7 @@ export function ShipmentForm({ onClose, onSuccess, initialData }: ShipmentFormPr
                     cbm: parseFloat(formData.cbm) || 0,
                     sellBase: parseFloat(formData.sellBase) || 0,
                     costManual: parseFloat(formData.costManual) || 0,
+                    salespersonId: formData.salespersonId || undefined,
                 }),
             });
 
@@ -146,7 +179,7 @@ export function ShipmentForm({ onClose, onSuccess, initialData }: ShipmentFormPr
 
             onSuccess();
         } catch (error: any) {
-            alert(error.message);
+            setError(error.message);
         } finally {
             setLoading(false);
         }
@@ -158,7 +191,7 @@ export function ShipmentForm({ onClose, onSuccess, initialData }: ShipmentFormPr
                 {/* Header */}
                 <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                     <div>
-                        <h2 className="text-xl font-bold text-slate-900">เพิ่มรายการขนส่งใหม่</h2>
+                        <h2 className="text-xl font-bold text-slate-900">{initialData ? 'แก้ไขรายการขนส่ง' : 'เพิ่มรายการขนส่งใหม่'}</h2>
                         <div className="flex items-center gap-2 mt-1">
                             {ratesLoaded ? (
                                 activeRates.length > 0 ?
@@ -178,8 +211,15 @@ export function ShipmentForm({ onClose, onSuccess, initialData }: ShipmentFormPr
 
                 <form onSubmit={handleSubmit} className="p-8 overflow-y-auto flex-1 space-y-8">
 
+                    {error && (
+                        <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm font-bold flex items-center gap-2 animate-shake">
+                            <AlertTriangle className="w-5 h-5" />
+                            {error}
+                        </div>
+                    )}
+
                     {/* Section 1: Customer & Date */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div className="md:col-span-1">
                             <label className="block text-xs font-bold text-slate-500 mb-2">วันที่รับเข้า</label>
                             <input
@@ -200,6 +240,21 @@ export function ShipmentForm({ onClose, onSuccess, initialData }: ShipmentFormPr
                                 value={formData.customerCode}
                                 onChange={e => setFormData({ ...formData, customerCode: e.target.value })}
                             />
+                        </div>
+                        <div className="md:col-span-1">
+                            <label className="block text-xs font-bold text-slate-500 mb-2">เซลล์ผู้ดูแล <span className="text-slate-300 font-normal">(ไม่บังคับ)</span></label>
+                            <select
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition font-semibold"
+                                value={formData.salespersonId}
+                                onChange={e => setFormData({ ...formData, salespersonId: e.target.value })}
+                            >
+                                <option value="">-- อัตโนมัติ (ตามลูกค้า) --</option>
+                                {salespersons.map((s: any) => (
+                                    <option key={s.id} value={s.id}>
+                                        {s.code} - {s.name}
+                                    </option>
+                                ))}
+                            </select>
                         </div>
                         <div className="md:col-span-1">
                             <label className="block text-xs font-bold text-slate-500 mb-2">หมายเลขพัสดุ (Tracking)</label>
@@ -346,7 +401,7 @@ export function ShipmentForm({ onClose, onSuccess, initialData }: ShipmentFormPr
                             </div>
                         )}
 
-                        <div className="mt-5 pt-5 border-t border-slate-200 grid grid-cols-2 gap-6 items-center">
+                        <div className="mt-5 pt-5 border-t border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
                             <div>
                                 <label className="block text-[11px] font-bold text-slate-400 mb-1.5">ราคาขาย (Sell Price)</label>
                                 <div className="relative">
@@ -361,14 +416,36 @@ export function ShipmentForm({ onClose, onSuccess, initialData }: ShipmentFormPr
                                         placeholder="0.00"
                                     />
                                 </div>
+                                {preview?.isLoss && (
+                                    <div className="flex items-center gap-2 mt-2 text-red-600 text-[11px] font-bold animate-pulse">
+                                        <AlertTriangle className="w-3.5 h-3.5" />
+                                        ราคาขายต่ำกว่าต้นทุน!
+                                    </div>
+                                )}
                             </div>
 
-                            {preview?.isLoss && (
-                                <div className="flex items-center gap-2.5 text-red-600 bg-red-50 p-4 rounded-xl border border-red-100 text-[11px] font-bold animate-pulse">
-                                    <AlertTriangle className="w-4 h-4 shrink-0" />
-                                    คําเตือน: ราคาขายต่ำกว่าต้นทุนที่คำนวณได้!
+                            <div className={`p-4 rounded-xl border flex items-center justify-between ${(preview?.commission || 0) > 0 ? 'bg-green-50 border-green-200' :
+                                (preview?.commission || 0) < 0 ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-200'
+                                }`}>
+                                <div>
+                                    <div className="text-[11px] font-bold text-slate-500 mb-1">ส่วนต่าง (เซลล์รับ)</div>
+                                    <div className={`text-2xl font-bold ${(preview?.commission || 0) > 0 ? 'text-green-700' :
+                                        (preview?.commission || 0) < 0 ? 'text-red-700' : 'text-slate-400'
+                                        }`}>
+                                        {formatNumber(preview?.commission)}
+                                    </div>
                                 </div>
-                            )}
+                                <div className="text-right">
+                                    <div className="text-[10px] font-bold px-2 py-1 rounded bg-white shadow-sm inline-block mb-1 text-slate-500">
+                                        {preview?.commissionMethod === 'ONEPCT' ? '1% ยอดขาย' : 'ส่วนต่างราคา'}
+                                    </div>
+                                    {preview?.commissionMethod === 'ONEPCT' && (
+                                        <div className="text-[10px] text-slate-400">
+                                            (ทุน = ขาย)
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
                         </div>
                     </div>
 

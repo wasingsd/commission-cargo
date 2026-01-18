@@ -17,17 +17,21 @@ import {
     Calendar,
     ArrowUpRight,
     ArrowDownRight,
-    Search as SearchIcon
+    Search as SearchIcon,
+    Upload,
+    Edit2,
+    Trash2,
+    X
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { ShipmentForm } from './ShipmentForm';
+import { BulkImportModal } from './BulkImportModal';
 import { formatCurrency, formatNumber } from '@/lib/calc';
 
 interface Shipment {
     id: string;
     dateIn: string;
-    customerCode: string;
     trackingNo: string;
     transport: 'TRUCK' | 'SHIP';
     weightKg: number;
@@ -35,19 +39,62 @@ interface Shipment {
     sellBase: number;
     costFinal: number;
     commissionValue: number;
-    status: string;
-    salesCode: string | null;
+    commissionMethod: string;
+    customer?: { code: string; name: string } | null;
+    salesperson?: { code: string; name: string } | null;
 }
 
 export function ShipmentList() {
     const [shipments, setShipments] = useState<Shipment[]>([]);
     const [loading, setLoading] = useState(true);
     const [showAddForm, setShowAddForm] = useState(false);
+    const [showBulkImport, setShowBulkImport] = useState(false);
     const [filters, setFilters] = useState({
         search: '',
         month: '',
         status: ''
     });
+
+    // Dropdown & Edit State
+    const [activeDropdownId, setActiveDropdownId] = useState<string | null>(null);
+    const [editItem, setEditItem] = useState<Shipment | undefined>(undefined);
+
+    // Close dropdown when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (activeDropdownId && !(event.target as Element).closest('.action-menu')) {
+                setActiveDropdownId(null);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [activeDropdownId]);
+
+    const handleEdit = (item: Shipment) => {
+        setEditItem(item);
+        setShowAddForm(true);
+        setActiveDropdownId(null);
+    };
+
+    const handleDelete = async (id: string, trackingNo: string) => {
+        if (!confirm(`ยืนยันการลบรายการ ${trackingNo}?\nการกระทำนี้ไม่สามารถเรียกคืนได้`)) return;
+
+        setActiveDropdownId(null);
+        setLoading(true);
+        try {
+            const res = await fetch(`/api/shipments/${id}`, { method: 'DELETE' });
+            if (res.ok) {
+                fetchShipments();
+            } else {
+                alert('ลบรายการไม่สำเร็จ');
+            }
+        } catch (error) {
+            console.error('Error deleting:', error);
+            alert('เกิดข้อผิดพลาดในการลบ');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const fetchShipments = async () => {
         setLoading(true);
@@ -69,6 +116,12 @@ export function ShipmentList() {
     useEffect(() => {
         fetchShipments();
     }, [filters]);
+
+    const getItemStatus = (item: Shipment) => {
+        if (item.costFinal > item.sellBase) return 'LOSS';
+        if (!item.costFinal || item.costFinal === 0) return 'MISSING';
+        return 'NORMAL';
+    };
 
     const getStatusIcon = (status: string) => {
         switch (status) {
@@ -105,6 +158,13 @@ export function ShipmentList() {
                     >
                         <Plus className="w-4 h-4" />
                         เพิ่มรายการใหม่
+                    </button>
+                    <button
+                        onClick={() => setShowBulkImport(true)}
+                        className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3.5 bg-accent-500 text-white rounded-xl text-sm font-semibold hover:bg-accent-600 transition-all shadow-lg active:scale-95"
+                    >
+                        <Upload className="w-4 h-4" />
+                        นำเข้าหลายรายการ
                     </button>
                     <button className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3.5 bg-white border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-all shadow-sm">
                         <Download className="w-4 h-4" />
@@ -179,7 +239,7 @@ export function ShipmentList() {
                                                 </div>
                                                 <div className="flex flex-col min-w-0">
                                                     <span className="text-sm font-bold text-slate-900 tracking-tight">{item.trackingNo}</span>
-                                                    <span className="text-[11px] font-medium text-slate-400">ลูกค้า: {item.customerCode}</span>
+                                                    <span className="text-[11px] font-medium text-slate-400">ลูกค้า: {item.customer?.code || '-'}</span>
                                                 </div>
                                             </div>
                                         </td>
@@ -214,19 +274,55 @@ export function ShipmentList() {
                                             </div>
                                         </td>
                                         <td className="px-6 py-6 text-center">
-                                            <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold border transition-colors
-                                                ${item.status === 'NORMAL' ? 'bg-green-50 text-green-700 border-green-100' :
-                                                    item.status === 'LOSS' ? 'bg-red-50 text-red-700 border-red-100' :
-                                                        'bg-amber-50 text-amber-700 border-amber-100'}
-                                            `}>
-                                                {getStatusIcon(item.status)}
-                                                {translateStatus(item.status)}
-                                            </div>
+                                            {(() => {
+                                                const status = getItemStatus(item);
+                                                return (
+                                                    <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold border transition-colors
+                                                        ${status === 'NORMAL' ? 'bg-green-50 text-green-700 border-green-100' :
+                                                            status === 'LOSS' ? 'bg-red-50 text-red-700 border-red-100' :
+                                                                'bg-amber-50 text-amber-700 border-amber-100'}
+                                                    `}>
+                                                        {getStatusIcon(status)}
+                                                        {translateStatus(status)}
+                                                    </div>
+                                                );
+                                            })()}
                                         </td>
                                         <td className="px-6 py-6 text-right">
-                                            <button className="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-400">
-                                                <MoreVertical className="w-4 h-4" />
-                                            </button>
+                                            <div className="relative action-menu">
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setActiveDropdownId(activeDropdownId === item.id ? null : item.id);
+                                                    }}
+                                                    className={`p-2 rounded-lg transition-colors ${activeDropdownId === item.id ? 'bg-slate-100 text-slate-900' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'}`}
+                                                >
+                                                    <MoreVertical className="w-4 h-4" />
+                                                </button>
+
+                                                {/* Dropdown Menu */}
+                                                {activeDropdownId === item.id && (
+                                                    <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 origin-top-right">
+                                                        <div className="p-1.5 space-y-0.5">
+                                                            <button
+                                                                onClick={() => handleEdit(item)}
+                                                                className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-colors"
+                                                            >
+                                                                <Edit2 className="w-4 h-4" />
+                                                                แก้ไขข้อมูล
+                                                            </button>
+                                                            <div className="h-px bg-slate-100 my-1"></div>
+                                                            <button
+                                                                onClick={() => handleDelete(item.id, item.trackingNo)}
+                                                                className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                                ลบรายการ
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </td>
                                     </tr>
                                 ))
@@ -248,9 +344,24 @@ export function ShipmentList() {
 
             {showAddForm && (
                 <ShipmentForm
-                    onClose={() => setShowAddForm(false)}
+                    initialData={editItem}
+                    onClose={() => {
+                        setShowAddForm(false);
+                        setEditItem(undefined);
+                    }}
                     onSuccess={() => {
                         setShowAddForm(false);
+                        setEditItem(undefined);
+                        fetchShipments();
+                    }}
+                />
+            )}
+
+            {showBulkImport && (
+                <BulkImportModal
+                    onClose={() => setShowBulkImport(false)}
+                    onSuccess={() => {
+                        setShowBulkImport(false);
                         fetchShipments();
                     }}
                 />

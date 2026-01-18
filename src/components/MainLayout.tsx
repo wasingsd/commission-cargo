@@ -16,7 +16,8 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
         if (path.includes('/shipments')) return 'รายการขนส่งสินค้า';
         if (path.includes('/summary')) return 'รายงานสรุปผลประกอบการ';
         if (path.includes('/logs')) return 'ประวัติการใช้งานระบบ';
-        return 'PR Cargo';
+        if (path.includes('/settings')) return 'ตั้งค่าระบบ';
+        return 'Cargo';
     };
 
     return (
@@ -79,7 +80,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
 
                 {/* Footer */}
                 <footer className="px-8 py-6 border-t border-slate-200 flex justify-between items-center text-xs font-semibold text-slate-400 bg-white">
-                    <p>© 2026 ระบบจัดการ PR Cargo</p>
+                    <p>© 2026 ระบบจัดการ Cargo</p>
                     <div className="flex gap-6">
                         <a href="#" className="hover:text-accent-500 transition">คู่มือการใช้งาน</a>
                         <a href="#" className="hover:text-accent-500 transition">แจ้งปัญหา</a>

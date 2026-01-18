@@ -21,6 +21,7 @@ const menuItems = [
     { href: '/shipments', label: 'รายการขนส่ง', icon: Truck },
     { href: '/summary', label: 'รายงานสรุป', icon: FileText },
     { href: '/logs', label: 'ประวัติการใช้งาน', icon: ClipboardList },
+    { href: '/settings', label: 'ตั้งค่าเซลล์', icon: Settings },
 ];
 
 export function Sidebar() {
@@ -34,7 +35,7 @@ export function Sidebar() {
                     <Package className="w-6 h-6" />
                 </div>
                 <div className="flex flex-col">
-                    <span className="text-xl font-bold text-white tracking-tight">PR CARGO</span>
+                    <span className="text-xl font-bold text-white tracking-tight">CARGO</span>
                     <span className="text-[11px] font-medium text-slate-500">ระบบจัดการค่าคอมมิชชั่น</span>
                 </div>
             </div>
