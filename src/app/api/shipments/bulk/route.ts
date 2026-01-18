@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/prisma';
-import { calcCost, calcCommission } from '@/lib/calc';
+import { computeCost, computeCommission } from '@/lib/calc';
 import { format } from 'date-fns';
 
 interface BulkShipmentRow {
@@ -102,20 +102,35 @@ export async function POST(req: Request) {
                 const salespersonId = customer.assignedSalespersonId || null;
 
                 // Calculate cost
-                const costResult = calcCost(
-                    row.productType || 'GENERAL',
-                    row.transport || 'TRUCK',
-                    row.cbm || 0,
-                    row.weightKg || 0,
-                    activeRateCard
-                );
+                let rateCbm = 0;
+                let rateKg = 0;
+
+                if (activeRateCard && activeRateCard.rows) {
+                    const rateRow = activeRateCard.rows.find(
+                        r => r.productType === (row.productType || 'GENERAL')
+                    );
+                    if (rateRow) {
+                        if (row.transport === 'SHIP') {
+                            rateCbm = Number(rateRow.shipCbm);
+                            rateKg = Number(rateRow.shipKg);
+                        } else { // TRUCK
+                            rateCbm = Number(rateRow.truckCbm);
+                            rateKg = Number(rateRow.truckKg);
+                        }
+                    }
+                }
+
+                const costResult = computeCost({
+                    weightKg: row.weightKg,
+                    cbm: row.cbm,
+                    rateCbm,
+                    rateKg
+                });
 
                 // Calculate commission
-                const hasSales = !!salespersonId;
-                const commResult = calcCommission(
+                const commResult = computeCommission(
                     row.sellBase || 0,
-                    costResult.costFinal,
-                    hasSales
+                    costResult.costFinal
                 );
 
                 // Create shipment
