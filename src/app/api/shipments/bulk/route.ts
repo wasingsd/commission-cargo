@@ -132,13 +132,13 @@ export async function POST(req: Request) {
 
                 // Create shipment
                 await firestore.shipments.create({
-                    dateIn,
-                    monthKey,
+                    dateIn: dateIn || undefined,
+                    monthKey: monthKey || undefined,
                     trackingNo: row.trackingNo,
                     trackingBase,
                     trackingSuffix: trackingSuffix ?? undefined,
                     customerId: customer.id,
-                    salespersonId,
+                    salespersonId: salespersonId || undefined,
                     productType: (row.productType || 'GENERAL') as ProductType,
                     transport: (row.transport || 'TRUCK') as Transport,
                     weightKg: row.weightKg || 0,
@@ -152,7 +152,7 @@ export async function POST(req: Request) {
                     costRule: costResult.costRule,
                     commissionMethod: commResult.commissionMethod,
                     commissionValue: commResult.commissionValue,
-                    note: row.note,
+                    note: row.note || undefined,
                 });
 
                 results.success++;

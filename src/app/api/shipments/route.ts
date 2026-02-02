@@ -115,14 +115,14 @@ export async function POST(req: Request) {
         // 6. DB Create
         const shipment = await firestore.shipments.create({
             dateIn: data.dateIn ? new Date(data.dateIn) : undefined,
-            monthKey: data.dateIn ? data.dateIn.substring(0, 7) : undefined,
+            monthKey: (data.dateIn as string)?.substring(0, 7) || undefined,
             trackingNo: data.trackingNo,
             trackingBase: base,
             trackingSuffix: suffix === null ? undefined : suffix,
 
 
-            customerId: data.customerId,
-            salespersonId: data.salespersonId,
+            customerId: data.customerId || undefined,
+            salespersonId: data.salespersonId || undefined,
 
             productType: data.productType,
             transport: data.transport,
@@ -133,17 +133,18 @@ export async function POST(req: Request) {
             sellBase: data.sellBase,
 
             costMode: data.costMode || 'AUTO',
-            costManual: data.costManual,
+            costManual: data.costManual || undefined,
 
-            rateCardUsedId: rateCardId,
+            rateCardUsedId: rateCardId || undefined,
 
             costCbm: costCbm,
             costKg: costKg,
             costFinal: costFinal,
-            costRule: costRule,
+            costRule: costRule as any,
 
-            commissionMethod: commResult.commissionMethod,
+            commissionMethod: commResult.commissionMethod as any,
             commissionValue: commResult.commissionValue,
+            note: body.note || undefined,
         });
 
         return NextResponse.json(shipment);

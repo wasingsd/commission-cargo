@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { firestore } from '@/lib/firestore';
+import { firestore, Salesperson } from '@/lib/firestore';
 
 // GET single salesperson with customers
 export async function GET(
@@ -79,7 +79,7 @@ export async function PUT(
             }
         }
 
-        const updateData: Record<string, unknown> = {};
+        const updateData: Partial<Salesperson> = {};
         if (code) updateData.code = code;
         if (name) updateData.name = name;
         if (phone !== undefined) updateData.phone = phone || undefined;

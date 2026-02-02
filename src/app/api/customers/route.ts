@@ -47,8 +47,8 @@ export async function POST(req: Request) {
 
         const customer = await firestore.customers.create({
             code,
-            name,
-            assignedSalespersonId: assignedSalespersonId || null,
+            name: name || undefined,
+            assignedSalespersonId: assignedSalespersonId || undefined,
         });
 
         // Audit Log

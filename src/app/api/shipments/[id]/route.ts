@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { firestore } from '@/lib/firestore';
+import { firestore, Shipment } from '@/lib/firestore';
 import { calculateFull } from '@/lib/calc';
 import { parseTracking } from '@/lib/tracking';
 
@@ -59,16 +59,19 @@ export async function PATCH(
         }
 
         // Build update data
-        const updateData: Record<string, unknown> = {};
+        const updateData: Partial<Shipment> = {};
 
-        if (body.dateIn) updateData.dateIn = new Date(body.dateIn);
+        if (body.dateIn) {
+            updateData.dateIn = new Date(body.dateIn);
+            updateData.monthKey = (body.dateIn as string).substring(0, 7);
+        }
         if (body.customerId) updateData.customerId = body.customerId;
-        if (body.salespersonId !== undefined) updateData.salespersonId = body.salespersonId || null;
+        if (body.salespersonId !== undefined) updateData.salespersonId = body.salespersonId || undefined;
         if (body.trackingNo) {
             updateData.trackingNo = body.trackingNo;
             const { base, suffix } = parseTracking(body.trackingNo);
             updateData.trackingBase = base;
-            updateData.trackingSuffix = suffix;
+            updateData.trackingSuffix = suffix ?? undefined;
         }
         if (body.productType) updateData.productType = body.productType;
         if (body.transport) updateData.transport = body.transport;
@@ -76,8 +79,8 @@ export async function PATCH(
         if (body.cbm !== undefined) updateData.cbm = parseFloat(body.cbm) || 0;
         if (body.sellBase !== undefined) updateData.sellBase = parseFloat(body.sellBase) || 0;
         if (body.costMode) updateData.costMode = body.costMode;
-        if (body.costManual !== undefined) updateData.costManual = body.costManual ? parseFloat(body.costManual) : null;
-        if (body.note !== undefined) updateData.note = body.note || null;
+        if (body.costManual !== undefined) updateData.costManual = body.costManual ? parseFloat(body.costManual) : undefined;
+        if (body.note !== undefined) updateData.note = body.note || undefined;
 
         // Recalculate if cost-related fields changed
         const needsRecalc = ['weightKg', 'cbm', 'sellBase', 'costMode', 'costManual', 'productType', 'transport'].some(
@@ -115,7 +118,7 @@ export async function PATCH(
                         cbm: body.cbm !== undefined ? parseFloat(body.cbm) : Number(current.cbm),
                         weightKg: body.weightKg !== undefined ? parseFloat(body.weightKg) : Number(current.weightKg),
                         sellBase: body.sellBase !== undefined ? parseFloat(body.sellBase) : Number(current.sellBase),
-                        costMode: body.costMode || current.costMode,
+                        costMode: (body.costMode || current.costMode) as any,
                         costManual: body.costManual !== undefined
                             ? (body.costManual ? parseFloat(body.costManual) : undefined)
                             : (current.costManual ? Number(current.costManual) : undefined),
@@ -129,8 +132,8 @@ export async function PATCH(
                 updateData.costCbm = calculation.costCbm;
                 updateData.costKg = calculation.costKg;
                 updateData.costFinal = calculation.costFinal;
-                updateData.costRule = calculation.costRule;
-                updateData.commissionMethod = calculation.commissionMethod;
+                updateData.costRule = calculation.costRule as any;
+                updateData.commissionMethod = calculation.commissionMethod as any;
                 updateData.commissionValue = calculation.commissionValue;
                 updateData.rateCardUsedId = rateCard.id;
             }
