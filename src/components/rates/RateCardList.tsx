@@ -13,8 +13,10 @@ import {
     Loader2,
     ChevronRight,
     TrendingUp,
-    Box
+    Box,
+    Trash2
 } from 'lucide-react';
+
 import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
 
@@ -65,9 +67,35 @@ export function RateCardList() {
             const json = await res.json();
             if (json.success) {
                 router.push(`/rates/${json.data.id}`);
+            } else {
+                // Show detailed error message
+                const errorMsg = typeof json.error === 'string'
+                    ? json.error
+                    : JSON.stringify(json.error);
+                console.error('Create rate card failed:', json);
+                alert(`ไม่สามารถสร้างร่างเรทใหม่ได้: ${errorMsg}`);
+            }
+        } catch (error: any) {
+            console.error('Create rate card error:', error);
+            alert(`ไม่สามารถสร้างร่างเรทใหม่ได้: ${error.message}`);
+        }
+    };
+
+
+    const handleDelete = async (e: React.MouseEvent, id: string, name: string) => {
+        e.stopPropagation();
+        if (!confirm(`ยืนยันการลบเรท "${name}"?\nการกระทำนี้ไม่สามารถเรียกคืนได้`)) return;
+
+        try {
+            const res = await fetch(`/api/rate-cards/${id}`, { method: 'DELETE' });
+            if (res.ok) {
+                fetchRateCards();
+            } else {
+                alert('ไม่สามารถลบเรทได้');
             }
         } catch (error) {
-            alert('ไม่สามารถสร้างร่างเรทใหม่ได้');
+            console.error('Failed to delete rate card:', error);
+            alert('เกิดข้อผิดพลาดในการลบ');
         }
     };
 
@@ -120,12 +148,21 @@ export function RateCardList() {
                                         }`}>
                                         <TrendingUp className="w-5 h-5" />
                                     </div>
-                                    <span className={`text-[11px] font-bold px-3 py-1 rounded-full border ${card.status === 'ACTIVE'
-                                        ? 'bg-green-50 text-green-700 border-green-100'
-                                        : 'bg-slate-50 text-slate-500 border-slate-100'
-                                        }`}>
-                                        {card.status === 'ACTIVE' ? 'ใช้งานอยู่' : card.status}
-                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        <span className={`text-[11px] font-bold px-3 py-1 rounded-full border ${card.status === 'ACTIVE'
+                                            ? 'bg-green-50 text-green-700 border-green-100'
+                                            : 'bg-slate-50 text-slate-500 border-slate-100'
+                                            }`}>
+                                            {card.status === 'ACTIVE' ? 'ใช้งานอยู่' : card.status}
+                                        </span>
+                                        <button
+                                            onClick={(e) => handleDelete(e, card.id, card.name)}
+                                            className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                            title="ลบเรทราคา"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <h3 className="text-xl font-bold text-slate-900 mb-6 group-hover:text-accent-500 transition-colors truncate">
@@ -167,3 +204,4 @@ export function RateCardList() {
         </div>
     );
 }
+

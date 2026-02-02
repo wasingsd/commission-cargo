@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useSession, signOut } from 'next-auth/react';
 import {
     LayoutDashboard,
     Coins,
@@ -12,7 +13,8 @@ import {
     Settings,
     LogOut,
     ChevronRight,
-    User as UserIcon
+    User as UserIcon,
+    Loader2
 } from 'lucide-react';
 
 const menuItems = [
@@ -26,6 +28,23 @@ const menuItems = [
 
 export function Sidebar() {
     const pathname = usePathname();
+    const router = useRouter();
+    const { data: session, status } = useSession();
+
+    const handleLogout = async () => {
+        await signOut({ redirect: false });
+        router.push('/login');
+    };
+
+    // Get user display info
+    const userName = session?.user?.name || 'ผู้ใช้งาน';
+    const userRole = session?.user?.role || 'STAFF';
+    const roleLabels: Record<string, string> = {
+        ADMIN: 'ผู้ดูแลระบบ',
+        MANAGER: 'ผู้จัดการ',
+        STAFF: 'พนักงาน',
+        SALE: 'เซลล์',
+    };
 
     return (
         <aside className="w-72 bg-brand-navy fixed left-0 top-0 h-full z-50 flex flex-col border-r border-white/5 shadow-2xl">
@@ -70,21 +89,31 @@ export function Sidebar() {
                 <div className="bg-white/5 rounded-2xl p-4 mb-4 group cursor-pointer hover:bg-white/10 transition border border-transparent hover:border-white/10">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-accent-500 font-bold border border-white/10 group-hover:border-accent-500/50 transition">
-                            <UserIcon className="w-5 h-5" />
+                            {status === 'loading' ? (
+                                <Loader2 className="w-5 h-5 animate-spin" />
+                            ) : (
+                                <UserIcon className="w-5 h-5" />
+                            )}
                         </div>
                         <div className="flex-1 overflow-hidden">
-                            <p className="text-sm font-semibold text-white truncate">ผู้ดูแลระบบ</p>
-                            <p className="text-[11px] font-medium text-slate-500">Super Admin</p>
+                            <p className="text-sm font-semibold text-white truncate">{userName}</p>
+                            <p className="text-[11px] font-medium text-slate-500">{roleLabels[userRole] || userRole}</p>
                         </div>
                     </div>
                 </div>
 
                 <div className="flex gap-2">
-                    <button className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-slate-500 hover:bg-white/5 hover:text-white transition group">
+                    <Link
+                        href="/settings"
+                        className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-slate-500 hover:bg-white/5 hover:text-white transition group"
+                    >
                         <Settings className="w-4 h-4" />
                         <span className="text-[12px] font-medium text-slate-500 group-hover:text-white">ตั้งค่า</span>
-                    </button>
-                    <button className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition group">
+                    </Link>
+                    <button
+                        onClick={handleLogout}
+                        className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition group"
+                    >
                         <LogOut className="w-4 h-4" />
                         <span className="text-[12px] font-medium text-slate-500 group-hover:text-red-400">ออกจากระบบ</span>
                     </button>

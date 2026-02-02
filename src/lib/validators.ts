@@ -1,8 +1,13 @@
 import { z } from 'zod';
-import { ProductType, Transport } from '@prisma/client';
+import { ProductType, Transport } from './enums';
+
+// Use z.enum with the actual values since we're no longer using Prisma
+const ProductTypeEnum = z.enum(['GENERAL', 'TISI', 'FDA', 'SPECIAL']);
+const TransportEnum = z.enum(['TRUCK', 'SHIP']);
+const CostModeEnum = z.enum(['AUTO', 'MANUAL']);
 
 export const RateRowSchema = z.object({
-    productType: z.nativeEnum(ProductType),
+    productType: ProductTypeEnum,
     truckCbm: z.number().min(0).default(0),
     truckKg: z.number().min(0).default(0),
     shipCbm: z.number().min(0).default(0),
@@ -20,12 +25,12 @@ export const CreateShipmentSchema = z.object({
     trackingNo: z.string().min(1),
     customerId: z.string().optional(),
     salespersonId: z.string().optional(),
-    productType: z.nativeEnum(ProductType),
-    transport: z.nativeEnum(Transport),
+    productType: ProductTypeEnum,
+    transport: TransportEnum,
     weightKg: z.number().optional(),
     cbm: z.number().optional(),
     sellBase: z.number().optional(),
-    costMode: z.enum(['AUTO', 'MANUAL']).optional().default('AUTO'),
+    costMode: CostModeEnum.optional().default('AUTO'),
     costManual: z.number().optional(),
     rateCardUsedId: z.string().optional()
 });

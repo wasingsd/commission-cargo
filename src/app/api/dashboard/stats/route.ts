@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { firestore } from '@/lib/firestore';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
@@ -8,20 +8,9 @@ export async function GET() {
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     try {
-        const shipments = await prisma.shipment.findMany({
-            select: {
-                id: true,
-                dateIn: true,
-                trackingNo: true,
-                customer: { select: { code: true } },
-                sellBase: true,
-                costFinal: true,
-                commissionValue: true,
-                commissionMethod: true
-            }
-        });
+        const shipments = await firestore.shipments.findAll();
 
-        // Compute stats locally (can optimize with groupBy/aggregate later if slow)
+        // Compute stats locally
         let totalComm = 0;
         let totalSales = 0;
         let totalCost = 0;
@@ -29,12 +18,21 @@ export async function GET() {
         let onePctComm = 0;
 
         const monthlyMap = new Map<string, { month: string, diff: number, onePct: number }>();
-        const risks = [];
+        const risks: {
+            id: string;
+            tracking: string;
+            customer: string | undefined;
+            type: string;
+            detail: string;
+        }[] = [];
+
+        // Get customer codes for shipments
+        const customerCache = new Map<string, string>();
 
         for (const s of shipments) {
-            const comm = Number(s.commissionValue);
-            const sell = Number(s.sellBase);
-            const cost = Number(s.costFinal);
+            const comm = Number(s.commissionValue || 0);
+            const sell = Number(s.sellBase || 0);
+            const cost = Number(s.costFinal || 0);
 
             totalComm += comm;
             totalSales += sell;
@@ -45,7 +43,7 @@ export async function GET() {
 
             // Monthly
             if (s.dateIn) {
-                const d = new Date(s.dateIn);
+                const d = s.dateIn instanceof Date ? s.dateIn : new Date(s.dateIn);
                 const m = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
                 if (!monthlyMap.has(m)) monthlyMap.set(m, { month: m, diff: 0, onePct: 0 });
                 const entry = monthlyMap.get(m)!;
@@ -53,12 +51,24 @@ export async function GET() {
                 else entry.onePct += comm;
             }
 
+            // Get customer code for risk display
+            let customerCode: string | undefined;
+            if (s.customerId) {
+                if (customerCache.has(s.customerId)) {
+                    customerCode = customerCache.get(s.customerId);
+                } else {
+                    const customer = await firestore.customers.findById(s.customerId);
+                    customerCode = customer?.code;
+                    if (customerCode) customerCache.set(s.customerId, customerCode);
+                }
+            }
+
             // Risks: Loss
             if (sell < cost && sell > 0) {
                 risks.push({
                     id: s.id,
                     tracking: s.trackingNo,
-                    customer: s.customer?.code,
+                    customer: customerCode,
                     type: 'LOSS',
                     detail: `Sell ${sell} < Cost ${cost}`
                 });

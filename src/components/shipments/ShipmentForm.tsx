@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { formatNumber, computeCost, parseTrackingNumber, computeCommission } from '@/lib/calc';
-import { ProductType, Transport } from '@prisma/client';
-import { Calculator, Truck, Ship, AlertTriangle } from 'lucide-react';
+import { ProductType, Transport } from '@/lib/enums';
+import { Calculator, Truck, Ship, AlertTriangle, Package, X, ChevronDown, ChevronUp, Sparkles, Check } from 'lucide-react';
 
 interface RateRowPreview {
     productType: ProductType;
@@ -23,6 +23,7 @@ interface ShipmentFormProps {
 export function ShipmentForm({ onClose, onSuccess, initialData }: ShipmentFormProps) {
     const router = useRouter();
     const [loading, setLoading] = useState(false);
+    const [showAdvanced, setShowAdvanced] = useState(false);
 
     // Active Rates for calculation
     const [activeRates, setActiveRates] = useState<RateRowPreview[]>([]);
@@ -50,13 +51,11 @@ export function ShipmentForm({ onClose, onSuccess, initialData }: ShipmentFormPr
     useEffect(() => {
         async function loadRates() {
             try {
-                // Fetch all and find Active
                 const res = await fetch('/api/rate-cards');
                 const json = await res.json();
                 if (json.success && Array.isArray(json.data)) {
                     const active = json.data.find((c: any) => c.status === 'ACTIVE');
                     if (active) {
-                        // Fetch details of active card
                         const detailRes = await fetch(`/api/rate-cards/${active.id}`);
                         const detailJson = await detailRes.json();
                         if (detailJson.success) {
@@ -107,7 +106,6 @@ export function ShipmentForm({ onClose, onSuccess, initialData }: ShipmentFormPr
             };
         }
 
-        // Find rate
         const rateRow = activeRates.find(r => r.productType === formData.productType);
         if (!rateRow) return null;
 
@@ -141,7 +139,7 @@ export function ShipmentForm({ onClose, onSuccess, initialData }: ShipmentFormPr
             isLoss: sell > 0 && sell < finalCost,
             commission: commResult.commissionValue,
             commissionMethod: commResult.commissionMethod,
-            rates: { rateCbm, rateKg } // for debug/info
+            rates: { rateCbm, rateKg }
         };
     };
 
@@ -185,287 +183,303 @@ export function ShipmentForm({ onClose, onSuccess, initialData }: ShipmentFormPr
         }
     };
 
+    const productTypes = [
+        { value: 'GENERAL', label: 'ทั่วไป', color: 'bg-slate-100 text-slate-700 border-slate-200' },
+        { value: 'TISI', label: 'มอก.', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+        { value: 'FDA', label: 'อย.', color: 'bg-green-50 text-green-700 border-green-200' },
+        { value: 'SPECIAL', label: 'พิเศษ', color: 'bg-purple-50 text-purple-700 border-purple-200' },
+    ];
+
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[95vh] border border-slate-200">
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col max-h-[95vh]">
                 {/* Header */}
-                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                    <div>
-                        <h2 className="text-xl font-bold text-slate-900">{initialData ? 'แก้ไขรายการขนส่ง' : 'เพิ่มรายการขนส่งใหม่'}</h2>
-                        <div className="flex items-center gap-2 mt-1">
-                            {ratesLoaded ? (
-                                activeRates.length > 0 ?
-                                    <span className="text-xs font-semibold text-green-600 flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-green-500"></span> เชื่อมต่อเรทราคาทุนปัจจุบันแล้ว</span> :
-                                    <span className="text-xs font-semibold text-amber-600 flex items-center gap-1.5"><AlertTriangle className="w-3.5 h-3.5" /> ไม่พบเรทราคาทุนที่เปิดใช้งาน</span>
-                            ) : (
-                                <span className="text-xs font-semibold text-slate-400 animate-pulse">กำลังโหลดเรทราคา...</span>
+                <div className="p-5 border-b border-slate-100 flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
+                            <Package className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-bold text-slate-900">
+                                {initialData ? 'แก้ไขรายการ' : 'เพิ่มรายการใหม่'}
+                            </h2>
+                            {ratesLoaded && activeRates.length > 0 && (
+                                <span className="text-[10px] font-medium text-green-600 flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                                    เรทราคาพร้อมใช้
+                                </span>
                             )}
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition text-slate-500">
-                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
+                    <button
+                        onClick={onClose}
+                        className="w-8 h-8 flex items-center justify-center hover:bg-slate-100 rounded-full transition text-slate-400 hover:text-slate-600"
+                    >
+                        <X className="w-5 h-5" />
                     </button>
                 </div>
 
-                <form onSubmit={handleSubmit} className="p-8 overflow-y-auto flex-1 space-y-8">
-
+                <form onSubmit={handleSubmit} className="p-5 overflow-y-auto flex-1 space-y-5">
                     {error && (
-                        <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm font-bold flex items-center gap-2 animate-shake">
-                            <AlertTriangle className="w-5 h-5" />
+                        <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2">
+                            <AlertTriangle className="w-4 h-4" />
                             {error}
                         </div>
                     )}
 
-                    {/* Section 1: Customer & Date */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <div className="md:col-span-1">
-                            <label className="block text-xs font-bold text-slate-500 mb-2">วันที่รับเข้า</label>
-                            <input
-                                type="date"
-                                required
-                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition font-semibold"
-                                value={formData.dateIn}
-                                onChange={e => setFormData({ ...formData, dateIn: e.target.value })}
-                            />
-                        </div>
-                        <div className="md:col-span-1">
-                            <label className="block text-xs font-bold text-slate-500 mb-2">รหัสลูกค้า</label>
-                            <input
-                                type="text"
-                                required
-                                placeholder="ตย. PR-001"
-                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition font-semibold"
-                                value={formData.customerCode}
-                                onChange={e => setFormData({ ...formData, customerCode: e.target.value })}
-                            />
-                        </div>
-                        <div className="md:col-span-1">
-                            <label className="block text-xs font-bold text-slate-500 mb-2">เซลล์ผู้ดูแล <span className="text-slate-300 font-normal">(ไม่บังคับ)</span></label>
-                            <select
-                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition font-semibold"
-                                value={formData.salespersonId}
-                                onChange={e => setFormData({ ...formData, salespersonId: e.target.value })}
-                            >
-                                <option value="">-- อัตโนมัติ (ตามลูกค้า) --</option>
-                                {salespersons.map((s: any) => (
-                                    <option key={s.id} value={s.id}>
-                                        {s.code} - {s.name}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                        <div className="md:col-span-1">
-                            <label className="block text-xs font-bold text-slate-500 mb-2">หมายเลขพัสดุ (Tracking)</label>
-                            <div className="relative">
+                    {/* Quick Entry Section */}
+                    <div className="space-y-4">
+                        {/* Tracking & Customer Row */}
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-500 mb-1.5">เลข Tracking *</label>
                                 <input
                                     type="text"
                                     required
-                                    placeholder="ใส่เลข Tracking..."
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition font-semibold tracking-wide"
+                                    placeholder="ABC123456"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white outline-none transition font-medium tracking-wide"
                                     value={formData.trackingNo}
-                                    onChange={e => setFormData({ ...formData, trackingNo: e.target.value })}
+                                    onChange={e => setFormData({ ...formData, trackingNo: e.target.value.toUpperCase() })}
                                 />
-                                {trackingInfo.suffix !== null && (
-                                    <div className="absolute right-3 top-3 px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] rounded font-bold">
-                                        -{trackingInfo.suffix}
-                                    </div>
-                                )}
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-500 mb-1.5">รหัสลูกค้า *</label>
+                                <input
+                                    type="text"
+                                    required
+                                    placeholder="PR-001"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white outline-none transition font-medium"
+                                    value={formData.customerCode}
+                                    onChange={e => setFormData({ ...formData, customerCode: e.target.value })}
+                                />
                             </div>
                         </div>
-                    </div>
 
-                    <div className="h-px bg-slate-100" />
-
-                    {/* Section 2: Cargo Details & Type */}
-                    <div>
-                        <h3 className="text-sm font-bold text-slate-900 mb-5 flex items-center gap-2">
-                            <Truck className="w-4 h-4 text-slate-400" /> รายละเอียดสินค้า
-                        </h3>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            <div className="col-span-2 md:col-span-1">
-                                <label className="block text-[11px] font-bold text-slate-400 mb-1.5">ประเภทสินค้า</label>
-                                <select
-                                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none bg-white font-semibold"
-                                    value={formData.productType}
-                                    onChange={e => setFormData({ ...formData, productType: e.target.value as ProductType })}
+                        {/* Transport Type Selector */}
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-500 mb-2">ช่องทางขนส่ง</label>
+                            <div className="grid grid-cols-2 gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setFormData({ ...formData, transport: 'TRUCK' })}
+                                    className={`py-3 rounded-xl text-sm font-semibold transition flex items-center justify-center gap-2 border-2 ${formData.transport === 'TRUCK'
+                                        ? 'bg-blue-50 border-blue-500 text-blue-700'
+                                        : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'
+                                        }`}
                                 >
-                                    <option value="GENERAL">ทั่วไป (General)</option>
-                                    <option value="TISI">มอก. (TISI)</option>
-                                    <option value="FDA">อย. (FDA)</option>
-                                    <option value="SPECIAL">พิเศษ (Special)</option>
-                                </select>
+                                    <Truck className="w-4 h-4" />
+                                    ทางบก (รถ)
+                                    {formData.transport === 'TRUCK' && <Check className="w-4 h-4" />}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setFormData({ ...formData, transport: 'SHIP' })}
+                                    className={`py-3 rounded-xl text-sm font-semibold transition flex items-center justify-center gap-2 border-2 ${formData.transport === 'SHIP'
+                                        ? 'bg-blue-50 border-blue-500 text-blue-700'
+                                        : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'
+                                        }`}
+                                >
+                                    <Ship className="w-4 h-4" />
+                                    ทางเรือ
+                                    {formData.transport === 'SHIP' && <Check className="w-4 h-4" />}
+                                </button>
                             </div>
-                            <div className="col-span-2 md:col-span-1">
-                                <label className="block text-[11px] font-bold text-slate-400 mb-1.5">ช่องทางขนส่ง</label>
-                                <div className="flex bg-slate-100 rounded-xl p-1">
-                                    <button
-                                        type="button"
-                                        onClick={() => setFormData({ ...formData, transport: 'TRUCK' })}
-                                        className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${formData.transport === 'TRUCK' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500'}`}
-                                    >
-                                        <Truck className="w-3.5 h-3.5" /> ทางบก
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setFormData({ ...formData, transport: 'SHIP' })}
-                                        className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${formData.transport === 'SHIP' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500'}`}
-                                    >
-                                        <Ship className="w-3.5 h-3.5" /> ทางเรือ
-                                    </button>
-                                </div>
-                            </div>
+                        </div>
 
-                            <div className="md:col-span-1">
-                                <label className="block text-[11px] font-bold text-slate-400 mb-1.5">น้ำหนัก (กิโลกรัม)</label>
+                        {/* Weight & CBM */}
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-500 mb-1.5">น้ำหนัก (กก.)</label>
                                 <input
                                     type="number"
                                     step="any"
-                                    placeholder="0"
-                                    className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none text-right font-semibold"
+                                    placeholder="0.00"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white outline-none transition font-medium text-right"
                                     value={formData.weightKg}
                                     onChange={e => setFormData({ ...formData, weightKg: e.target.value })}
                                 />
                             </div>
-                            <div className="md:col-span-1">
-                                <label className="block text-[11px] font-bold text-slate-400 mb-1.5">ปริมาตร (CBM)</label>
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-500 mb-1.5">ปริมาตร (CBM)</label>
                                 <input
                                     type="number"
                                     step="any"
-                                    placeholder="0"
-                                    className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none text-right font-semibold"
+                                    placeholder="0.00"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white outline-none transition font-medium text-right"
                                     value={formData.cbm}
                                     onChange={e => setFormData({ ...formData, cbm: e.target.value })}
                                 />
                             </div>
                         </div>
-                    </div>
 
-                    {/* Section 3: Cost Calculation */}
-                    <div className="bg-slate-50/50 rounded-2xl p-6 border border-slate-200">
-                        <div className="flex justify-between items-start mb-5">
-                            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                                <Calculator className="w-4 h-4 text-blue-500" /> การคํานวณต้นทุน
-                            </h3>
-
-                            <div className="flex bg-white rounded-lg p-0.5 border border-slate-200 shadow-sm">
-                                <button
-                                    type="button"
-                                    onClick={() => setFormData({ ...formData, costMode: 'AUTO' })}
-                                    className={`px-3 py-1.5 rounded-md text-[11px] font-bold transition ${formData.costMode === 'AUTO' ? 'bg-blue-50 text-blue-700' : 'text-slate-500'}`}
-                                >
-                                    อัตโนมัติ
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setFormData({ ...formData, costMode: 'MANUAL' })}
-                                    className={`px-3 py-1.5 rounded-md text-[11px] font-bold transition ${formData.costMode === 'MANUAL' ? 'bg-amber-50 text-amber-700' : 'text-slate-500'}`}
-                                >
-                                    ระบุเอง
-                                </button>
-                            </div>
-                        </div>
-
-                        {formData.costMode === 'MANUAL' ? (
-                            <div>
-                                <label className="block text-[11px] font-bold text-slate-400 mb-1.5">ต้นทุนที่ระบุเอง</label>
+                        {/* Sell Price */}
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-500 mb-1.5">ราคาขาย (บาท) *</label>
+                            <div className="relative">
+                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-semibold">฿</span>
                                 <input
                                     type="number"
                                     step="any"
-                                    className="w-full bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm focus:ring-0 outline-none text-right font-bold text-amber-800"
-                                    value={formData.costManual}
-                                    onChange={e => setFormData({ ...formData, costManual: e.target.value })}
+                                    required
                                     placeholder="0.00"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-green-500/20 focus:border-green-500 focus:bg-white outline-none transition font-semibold text-right text-lg"
+                                    value={formData.sellBase}
+                                    onChange={e => setFormData({ ...formData, sellBase: e.target.value })}
                                 />
                             </div>
-                        ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div className={`p-4 rounded-xl border ${preview?.rule === 'CBM' ? 'bg-blue-50/50 border-blue-200' : 'bg-white border-slate-100 opacity-60'}`}>
-                                    <div className="text-[10px] text-slate-400 font-bold mb-1">คิดตาม CBM</div>
-                                    <div className="text-lg font-bold text-slate-900">{formatNumber(preview?.costCbm)}</div>
-                                    <div className="text-[10px] text-slate-400 mt-1">เรท: {formatNumber(preview?.rates?.rateCbm)}</div>
+                        </div>
+                    </div>
+
+                    {/* Preview Card */}
+                    {preview && (
+                        <div className={`rounded-2xl p-4 border ${preview.isLoss
+                            ? 'bg-red-50/50 border-red-200'
+                            : 'bg-gradient-to-br from-green-50 to-emerald-50 border-green-200'
+                            }`}>
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <div className="text-xs font-semibold text-slate-500 mb-1">
+                                        {preview.isLoss ? '⚠️ ขาดทุน' : '💰 กำไร (ส่วนต่าง)'}
+                                    </div>
+                                    <div className={`text-2xl font-bold ${preview.isLoss ? 'text-red-600' : 'text-green-600'}`}>
+                                        ฿{formatNumber(preview.commission)}
+                                    </div>
                                 </div>
-                                <div className={`p-4 rounded-xl border ${preview?.rule === 'KG' ? 'bg-blue-50/50 border-blue-200' : 'bg-white border-slate-100 opacity-60'}`}>
-                                    <div className="text-[10px] text-slate-400 font-bold mb-1">คิดตาม กก.</div>
-                                    <div className="text-lg font-bold text-slate-900">{formatNumber(preview?.costKg)}</div>
-                                    <div className="text-[10px] text-slate-400 mt-1">เรท: {formatNumber(preview?.rates?.rateKg)}</div>
-                                </div>
-                                <div className="flex flex-col justify-center items-end p-2">
-                                    <div className="text-[11px] font-bold text-slate-400 mb-1">ต้นทุนสุทธิ</div>
-                                    <div className="text-2xl font-bold text-slate-900">{formatNumber(preview?.finalCost)}</div>
-                                    <div className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded mt-1">
-                                        เงื่อนไข: {preview?.rule === 'CBM' ? 'ปริมาตร' : 'น้ำหนัก'}
+                                <div className="text-right">
+                                    <div className="text-xs font-medium text-slate-400">ต้นทุน</div>
+                                    <div className="text-lg font-bold text-slate-700">฿{formatNumber(preview.finalCost)}</div>
+                                    <div className="text-[10px] font-medium text-slate-400 mt-0.5">
+                                        คิดตาม{preview.rule === 'CBM' ? 'ปริมาตร' : preview.rule === 'KG' ? 'น้ำหนัก' : 'ที่ระบุ'}
                                     </div>
                                 </div>
                             </div>
-                        )}
+                        </div>
+                    )}
 
-                        <div className="mt-5 pt-5 border-t border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                    {/* Advanced Options Toggle */}
+                    <button
+                        type="button"
+                        onClick={() => setShowAdvanced(!showAdvanced)}
+                        className="w-full flex items-center justify-between py-3 px-4 bg-slate-50 hover:bg-slate-100 rounded-xl text-sm font-medium text-slate-600 transition"
+                    >
+                        <span className="flex items-center gap-2">
+                            <Sparkles className="w-4 h-4 text-slate-400" />
+                            ตั้งค่าเพิ่มเติม
+                        </span>
+                        {showAdvanced ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    </button>
+
+                    {/* Advanced Options */}
+                    {showAdvanced && (
+                        <div className="space-y-4 p-4 bg-slate-50/50 rounded-xl border border-slate-100 animate-in slide-in-from-top-2 duration-200">
+                            {/* Date */}
                             <div>
-                                <label className="block text-[11px] font-bold text-slate-400 mb-1.5">ราคาขาย (Sell Price)</label>
-                                <div className="relative">
-                                    <span className="absolute left-4 top-3.5 text-slate-400 font-bold text-sm">฿</span>
-                                    <input
-                                        type="number"
-                                        step="any"
-                                        required
-                                        className="w-full pl-8 pr-4 py-3 bg-white border border-slate-300 rounded-xl text-sm focus:ring-4 focus:ring-green-500/10 focus:border-green-500 font-bold text-slate-900"
-                                        value={formData.sellBase}
-                                        onChange={e => setFormData({ ...formData, sellBase: e.target.value })}
-                                        placeholder="0.00"
-                                    />
+                                <label className="block text-xs font-semibold text-slate-500 mb-1.5">วันที่รับเข้า</label>
+                                <input
+                                    type="date"
+                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition font-medium"
+                                    value={formData.dateIn}
+                                    onChange={e => setFormData({ ...formData, dateIn: e.target.value })}
+                                />
+                            </div>
+
+                            {/* Product Type */}
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-500 mb-2">ประเภทสินค้า</label>
+                                <div className="flex flex-wrap gap-2">
+                                    {productTypes.map(type => (
+                                        <button
+                                            key={type.value}
+                                            type="button"
+                                            onClick={() => setFormData({ ...formData, productType: type.value as ProductType })}
+                                            className={`px-4 py-2 rounded-lg text-xs font-bold transition border ${formData.productType === type.value
+                                                ? type.color + ' ring-2 ring-offset-1 ring-blue-500/30'
+                                                : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'
+                                                }`}
+                                        >
+                                            {type.label}
+                                        </button>
+                                    ))}
                                 </div>
-                                {preview?.isLoss && (
-                                    <div className="flex items-center gap-2 mt-2 text-red-600 text-[11px] font-bold animate-pulse">
-                                        <AlertTriangle className="w-3.5 h-3.5" />
-                                        ราคาขายต่ำกว่าต้นทุน!
+                            </div>
+
+                            {/* Salesperson */}
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-500 mb-1.5">เซลล์ผู้ดูแล</label>
+                                <select
+                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition font-medium"
+                                    value={formData.salespersonId}
+                                    onChange={e => setFormData({ ...formData, salespersonId: e.target.value })}
+                                >
+                                    <option value="">อัตโนมัติ (ตามลูกค้า)</option>
+                                    {salespersons.map((s: any) => (
+                                        <option key={s.id} value={s.id}>
+                                            {s.code} - {s.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Cost Mode */}
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-500 mb-2">โหมดคิดต้นทุน</label>
+                                <div className="flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setFormData({ ...formData, costMode: 'AUTO' })}
+                                        className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition border ${formData.costMode === 'AUTO'
+                                            ? 'bg-blue-50 border-blue-500 text-blue-700'
+                                            : 'bg-white border-slate-200 text-slate-500'
+                                            }`}
+                                    >
+                                        <Calculator className="w-3.5 h-3.5 inline mr-1.5" />
+                                        คำนวณอัตโนมัติ
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFormData({ ...formData, costMode: 'MANUAL' })}
+                                        className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition border ${formData.costMode === 'MANUAL'
+                                            ? 'bg-amber-50 border-amber-500 text-amber-700'
+                                            : 'bg-white border-slate-200 text-slate-500'
+                                            }`}
+                                    >
+                                        ระบุเอง
+                                    </button>
+                                </div>
+                                {formData.costMode === 'MANUAL' && (
+                                    <div className="mt-3">
+                                        <input
+                                            type="number"
+                                            step="any"
+                                            placeholder="ระบุต้นทุน..."
+                                            className="w-full bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 text-sm font-bold text-amber-800 text-right"
+                                            value={formData.costManual}
+                                            onChange={e => setFormData({ ...formData, costManual: e.target.value })}
+                                        />
                                     </div>
                                 )}
                             </div>
 
-                            <div className={`p-4 rounded-xl border flex items-center justify-between ${(preview?.commission || 0) > 0 ? 'bg-green-50 border-green-200' :
-                                (preview?.commission || 0) < 0 ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-200'
-                                }`}>
-                                <div>
-                                    <div className="text-[11px] font-bold text-slate-500 mb-1">ส่วนต่าง (เซลล์รับ)</div>
-                                    <div className={`text-2xl font-bold ${(preview?.commission || 0) > 0 ? 'text-green-700' :
-                                        (preview?.commission || 0) < 0 ? 'text-red-700' : 'text-slate-400'
-                                        }`}>
-                                        {formatNumber(preview?.commission)}
-                                    </div>
-                                </div>
-                                <div className="text-right">
-                                    <div className="text-[10px] font-bold px-2 py-1 rounded bg-white shadow-sm inline-block mb-1 text-slate-500">
-                                        {preview?.commissionMethod === 'ONEPCT' ? '1% ยอดขาย' : 'ส่วนต่างราคา'}
-                                    </div>
-                                    {preview?.commissionMethod === 'ONEPCT' && (
-                                        <div className="text-[10px] text-slate-400">
-                                            (ทุน = ขาย)
-                                        </div>
-                                    )}
-                                </div>
+                            {/* Note */}
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-500 mb-1.5">หมายเหตุ</label>
+                                <textarea
+                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition font-medium resize-none"
+                                    rows={2}
+                                    value={formData.note}
+                                    onChange={e => setFormData({ ...formData, note: e.target.value })}
+                                    placeholder="รายละเอียดเพิ่มเติม..."
+                                />
                             </div>
                         </div>
-                    </div>
-
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 mb-2">หมายเหตุ</label>
-                        <textarea
-                            className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition font-medium"
-                            rows={2}
-                            value={formData.note}
-                            onChange={e => setFormData({ ...formData, note: e.target.value })}
-                            placeholder="ระบุรายละเอียดเพิ่มเติม..."
-                        />
-                    </div>
-
+                    )}
                 </form>
 
-                <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-3">
+                {/* Footer */}
+                <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex gap-3">
                     <button
                         onClick={onClose}
-                        className="px-6 py-2.5 text-slate-500 hover:bg-slate-200 rounded-xl text-sm font-bold transition"
+                        className="flex-1 py-3 text-slate-500 hover:bg-slate-200 rounded-xl text-sm font-semibold transition"
                         disabled={loading}
                     >
                         ยกเลิก
@@ -473,12 +487,23 @@ export function ShipmentForm({ onClose, onSuccess, initialData }: ShipmentFormPr
                     <button
                         onClick={handleSubmit}
                         disabled={loading}
-                        className="px-10 py-2.5 bg-slate-900 text-white hover:bg-slate-800 rounded-xl text-sm font-bold transition shadow-lg active:scale-95 disabled:opacity-50 flex items-center gap-2"
+                        className="flex-[2] py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800 rounded-xl text-sm font-bold transition shadow-lg shadow-blue-500/30 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
                     >
-                        {loading ? 'กำลังบันทึก...' : 'บันทึกรายการ'}
+                        {loading ? (
+                            <>
+                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                กำลังบันทึก...
+                            </>
+                        ) : (
+                            <>
+                                <Check className="w-4 h-4" />
+                                บันทึกรายการ
+                            </>
+                        )}
                     </button>
                 </div>
             </div>
         </div>
     );
 }
+

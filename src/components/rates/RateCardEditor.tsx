@@ -6,7 +6,7 @@ import {
     Save, ArrowLeft, CheckCircle2, AlertTriangle,
     RotateCw, ShieldCheck, Zap
 } from 'lucide-react';
-import { ProductType, RateCardStatus } from '@prisma/client';
+import { ProductType, RateCardStatus } from '@/lib/enums';
 
 interface RateRowData {
     id?: string;

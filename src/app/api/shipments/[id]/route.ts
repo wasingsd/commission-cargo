@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { firestore } from '@/lib/firestore';
 import { calculateFull, parseTrackingNumber } from '@/lib/calc';
 
 export async function GET(
@@ -16,14 +16,7 @@ export async function GET(
     try {
         const { id } = await params;
 
-        const shipment = await prisma.shipment.findUnique({
-            where: { id },
-            include: {
-                customer: true,
-                salesperson: true,
-                rateCardUsed: true,
-            },
-        });
+        const shipment = await firestore.shipments.findByIdWithRelations(id);
 
         if (!shipment) {
             return NextResponse.json(
@@ -55,10 +48,7 @@ export async function PATCH(
         const userId = 'system'; // TODO: Get from session
 
         // Get current shipment
-        const current = await prisma.shipment.findUnique({
-            where: { id },
-            include: { customer: true, salesperson: true },
-        });
+        const current = await firestore.shipments.findByIdWithRelations(id);
 
         if (!current) {
             return NextResponse.json(
@@ -86,7 +76,6 @@ export async function PATCH(
         if (body.sellBase !== undefined) updateData.sellBase = parseFloat(body.sellBase) || 0;
         if (body.costMode) updateData.costMode = body.costMode;
         if (body.costManual !== undefined) updateData.costManual = body.costManual ? parseFloat(body.costManual) : null;
-        if (body.status) updateData.status = body.status;
         if (body.note !== undefined) updateData.note = body.note || null;
 
         // Recalculate if cost-related fields changed
@@ -96,17 +85,15 @@ export async function PATCH(
 
         if (needsRecalc) {
             // Get active rate card or use the one already assigned
-            const rateCard = await prisma.rateCard.findFirst({
-                where: { status: 'ACTIVE' },
-                include: { rows: true },
-            });
+            const rateCard = await firestore.rateCards.findActive();
 
             if (rateCard) {
+                const rateCardWithRows = await firestore.rateCards.findById(rateCard.id, true);
                 const productType = body.productType || current.productType;
                 const transport = body.transport || current.transport;
 
                 // Find rate row for this product type
-                const rateRow = rateCard.rows.find(r => r.productType === productType);
+                const rateRow = rateCardWithRows?.rows?.find(r => r.productType === productType);
 
                 let rateCbm = 0;
                 let rateKg = 0;
@@ -144,36 +131,31 @@ export async function PATCH(
                 updateData.costRule = calculation.costRule;
                 updateData.commissionMethod = calculation.commissionMethod;
                 updateData.commissionValue = calculation.commissionValue;
-                updateData.rateCardIdUsed = rateCard.id;
+                updateData.rateCardUsedId = rateCard.id;
             }
         }
 
         // Update shipment
-        const updated = await prisma.shipment.update({
-            where: { id },
-            data: updateData,
-            include: {
-                customer: true,
-                salesperson: true,
-            },
-        });
+        const updated = await firestore.shipments.update(id, updateData);
+
+        // Populate relations for return
+        const updatedWithRelations = await firestore.shipments.findByIdWithRelations(id);
 
         // Create audit log
-        await prisma.auditLog.create({
-            data: {
-                actorUserId: userId,
-                entityType: 'SHIPMENT',
-                entityId: id,
-                action: 'UPDATE',
-                beforeJson: current,
-                afterJson: updated,
-                message: `แก้ไขรายการ Tracking: ${updated.trackingNo}`,
-            },
+        await firestore.auditLogs.create({
+            actorUserId: userId,
+            entityType: 'SHIPMENT',
+            entityId: id,
+            action: 'UPDATE',
+            beforeJson: current as unknown as Record<string, unknown>,
+            afterJson: updated as unknown as Record<string, unknown>,
+
+            message: `แก้ไขรายการ Tracking: ${updated?.trackingNo}`,
         });
 
         return NextResponse.json({
             success: true,
-            data: updated,
+            data: updatedWithRelations,
         });
     } catch (error) {
         console.error('Error updating shipment:', error);
@@ -193,9 +175,7 @@ export async function DELETE(
         const userId = 'system'; // TODO: Get from session
 
         // Get current shipment for audit log
-        const shipment = await prisma.shipment.findUnique({
-            where: { id },
-        });
+        const shipment = await firestore.shipments.findById(id);
 
         if (!shipment) {
             return NextResponse.json(
@@ -205,20 +185,17 @@ export async function DELETE(
         }
 
         // Delete shipment
-        await prisma.shipment.delete({
-            where: { id },
-        });
+        await firestore.shipments.delete(id);
 
         // Create audit log
-        await prisma.auditLog.create({
-            data: {
-                actorUserId: userId,
-                entityType: 'SHIPMENT',
-                entityId: id,
-                action: 'DELETE',
-                beforeJson: shipment,
-                message: `ลบรายการ Tracking: ${shipment.trackingNo}`,
-            },
+        await firestore.auditLogs.create({
+            actorUserId: userId,
+            entityType: 'SHIPMENT',
+            entityId: id,
+            action: 'DELETE',
+            beforeJson: shipment as unknown as Record<string, unknown>,
+
+            message: `ลบรายการ Tracking: ${shipment.trackingNo}`,
         });
 
         return NextResponse.json({

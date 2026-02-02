@@ -5,9 +5,10 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { firestore } from '@/lib/firestore';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { ProductType } from '@/lib/enums';
 
 export async function GET(
     request: NextRequest,
@@ -16,19 +17,7 @@ export async function GET(
     try {
         const { id } = await params;
 
-        const rateCard = await prisma.rateCard.findUnique({
-            where: { id },
-            include: {
-                rows: true,
-                createdBy: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true,
-                    },
-                },
-            },
-        });
+        const rateCard = await firestore.rateCards.findById(id, true);
 
         if (!rateCard) {
             return NextResponse.json(
@@ -37,9 +26,25 @@ export async function GET(
             );
         }
 
+        // Get creator info if available
+        let createdBy = null;
+        if (rateCard.createdById) {
+            const user = await firestore.users.findById(rateCard.createdById);
+            if (user) {
+                createdBy = {
+                    id: user.id,
+                    name: user.name,
+                    email: user.email,
+                };
+            }
+        }
+
         return NextResponse.json({
             success: true,
-            data: rateCard,
+            data: {
+                ...rateCard,
+                createdBy,
+            },
         });
     } catch (error) {
         console.error('Error fetching rate card:', error);
@@ -63,10 +68,7 @@ export async function PATCH(
         const { name, effectiveFrom, effectiveTo, status, rows } = body;
 
         // Get current state for audit log
-        const current = await prisma.rateCard.findUnique({
-            where: { id },
-            include: { rows: true },
-        });
+        const current = await firestore.rateCards.findById(id, true);
 
         if (!current) {
             return NextResponse.json(
@@ -75,64 +77,42 @@ export async function PATCH(
             );
         }
 
-        // Transaction for Rate Card Header + Rows
-        await prisma.$transaction(async (tx) => {
-            // 1. Update Header
-            await tx.rateCard.update({
-                where: { id },
-                data: {
-                    ...(name && { name }),
-                    ...(effectiveFrom && { effectiveFrom: new Date(effectiveFrom) }),
-                    ...(effectiveTo !== undefined && { effectiveTo: effectiveTo ? new Date(effectiveTo) : null }),
-                    ...(status && { status }),
-                }
-            });
+        // Update header
+        const updateData: Record<string, unknown> = {};
+        if (name) updateData.name = name;
+        if (effectiveFrom) updateData.effectiveFrom = new Date(effectiveFrom);
+        if (effectiveTo !== undefined) updateData.effectiveTo = effectiveTo ? new Date(effectiveTo) : null;
+        if (status) updateData.status = status;
 
-            // 2. Update Rows (if provided)
-            if (rows && Array.isArray(rows)) {
-                for (const r of rows) {
-                    await tx.rateRow.upsert({
-                        where: {
-                            rateCardId_productType: {
-                                rateCardId: id,
-                                productType: r.productType
-                            }
-                        },
-                        create: {
-                            rateCardId: id,
-                            productType: r.productType,
-                            truckCbm: Number(r.truckCbm),
-                            truckKg: Number(r.truckKg),
-                            shipCbm: Number(r.shipCbm),
-                            shipKg: Number(r.shipKg)
-                        },
-                        update: {
-                            truckCbm: Number(r.truckCbm),
-                            truckKg: Number(r.truckKg),
-                            shipCbm: Number(r.shipCbm),
-                            shipKg: Number(r.shipKg)
-                        }
-                    });
-                }
-            }
+        if (Object.keys(updateData).length > 0) {
+            await firestore.rateCards.update(id, updateData);
+        }
 
-            // 3. Audit Log
-            await tx.auditLog.create({
-                data: {
-                    actorUserId: userId,
-                    entityType: 'RATE_CARD',
-                    entityId: id,
-                    action: 'UPDATE',
-                    message: `Updated rate card: ${name || current.name}`,
-                    beforeJson: current as any
-                }
-            });
+        // Update rows (if provided)
+        if (rows && Array.isArray(rows)) {
+            await firestore.rateCards.updateRows(
+                id,
+                rows.map(r => ({
+                    productType: r.productType as ProductType,
+                    truckCbm: Number(r.truckCbm),
+                    truckKg: Number(r.truckKg),
+                    shipCbm: Number(r.shipCbm),
+                    shipKg: Number(r.shipKg)
+                }))
+            );
+        }
+
+        // Audit Log
+        await firestore.auditLogs.create({
+            actorUserId: userId,
+            entityType: 'RATE_CARD',
+            entityId: id,
+            action: 'UPDATE',
+            message: `Updated rate card: ${name || current.name}`,
+            beforeJson: current as unknown as Record<string, unknown>
         });
 
-        const updated = await prisma.rateCard.findUnique({
-            where: { id },
-            include: { rows: true }
-        });
+        const updated = await firestore.rateCards.findById(id, true);
 
         return NextResponse.json({
             success: true,
@@ -146,3 +126,41 @@ export async function PATCH(
         );
     }
 }
+
+export async function DELETE(
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    try {
+        const { id } = await params;
+
+        // Get existing card for audit
+        const existing = await firestore.rateCards.findById(id);
+        if (!existing) {
+            return NextResponse.json({ error: 'Rate card not found' }, { status: 404 });
+        }
+
+        await firestore.rateCards.delete(id);
+
+        // Audit Log
+        await firestore.auditLogs.create({
+            actorUserId: session.user.id,
+            entityType: 'RATE_CARD',
+            entityId: id,
+            action: 'DELETE',
+            beforeJson: existing as unknown as Record<string, unknown>
+        });
+
+        return NextResponse.json({ success: true });
+    } catch (error: any) {
+        console.error('Error deleting rate card:', error);
+        return NextResponse.json(
+            { success: false, error: 'Failed to delete rate card' },
+            { status: 500 }
+        );
+    }
+}
+

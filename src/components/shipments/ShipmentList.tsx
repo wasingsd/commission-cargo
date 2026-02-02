@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import {
     Search,
     Filter,
@@ -28,6 +29,7 @@ import { th } from 'date-fns/locale';
 import { ShipmentForm } from './ShipmentForm';
 import { BulkImportModal } from './BulkImportModal';
 import { formatCurrency, formatNumber } from '@/lib/calc';
+
 
 interface Shipment {
     id: string;
@@ -76,25 +78,30 @@ export function ShipmentList() {
         setActiveDropdownId(null);
     };
 
-    const handleDelete = async (id: string, trackingNo: string) => {
+    const handleDelete = async (e: React.MouseEvent, id: string, trackingNo: string) => {
+        e.stopPropagation(); // Prevent row click or other events
         if (!confirm(`ยืนยันการลบรายการ ${trackingNo}?\nการกระทำนี้ไม่สามารถเรียกคืนได้`)) return;
 
         setActiveDropdownId(null);
         setLoading(true);
         try {
             const res = await fetch(`/api/shipments/${id}`, { method: 'DELETE' });
+            const json = await res.json();
+
             if (res.ok) {
                 fetchShipments();
             } else {
-                alert('ลบรายการไม่สำเร็จ');
+                console.error('Delete failed:', json);
+                alert(`ลบรายการไม่สำเร็จ: ${json.message || json.error || 'Unknown error'}`);
             }
         } catch (error) {
             console.error('Error deleting:', error);
-            alert('เกิดข้อผิดพลาดในการลบ');
+            alert('เกิดข้อผิดพลาดในการลบ (Network Error)');
         } finally {
             setLoading(false);
         }
     };
+
 
     const fetchShipments = async () => {
         setLoading(true);
@@ -152,13 +159,14 @@ export function ShipmentList() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
-                    <button
-                        onClick={() => setShowAddForm(true)}
+                    <Link
+                        href="/shipments/new"
                         className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3.5 bg-slate-900 text-white rounded-xl text-sm font-semibold hover:bg-slate-800 transition-all shadow-lg active:scale-95 group"
                     >
                         <Plus className="w-4 h-4" />
                         เพิ่มรายการใหม่
-                    </button>
+                    </Link>
+
                     <button
                         onClick={() => setShowBulkImport(true)}
                         className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3.5 bg-accent-500 text-white rounded-xl text-sm font-semibold hover:bg-accent-600 transition-all shadow-lg active:scale-95"
@@ -313,7 +321,8 @@ export function ShipmentList() {
                                                             </button>
                                                             <div className="h-px bg-slate-100 my-1"></div>
                                                             <button
-                                                                onClick={() => handleDelete(item.id, item.trackingNo)}
+                                                                onClick={(e) => handleDelete(e, item.id, item.trackingNo)}
+
                                                                 className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
                                                             >
                                                                 <Trash2 className="w-4 h-4" />

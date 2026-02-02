@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { firestore } from '@/lib/firestore';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { computeCommission, computeCost } from '@/lib/calc';
 import { parseTracking } from '@/lib/tracking';
-import { ProductType, Transport } from '@prisma/client';
+import { ProductType, Transport, CostMode } from '@/lib/enums';
 
 export async function POST(req: Request) {
     const session = await getServerSession(authOptions);
@@ -22,7 +22,7 @@ export async function POST(req: Request) {
             weightKg: body.weightKg || 0,
             cbm: body.cbm || 0,
             sellBase: body.sellBase || 0,
-            costMode: body.costMode || 'AUTO',
+            costMode: (body.costMode || 'AUTO') as CostMode,
             costManual: body.costManual,
             rateCardUsedId: body.rateCardUsedId,
             customerId: body.customerId,
@@ -31,9 +31,7 @@ export async function POST(req: Request) {
 
         // Lookup Customer by code if customerId not provided
         if (!data.customerId && body.customerCode) {
-            const customer = await prisma.customer.findFirst({
-                where: { code: body.customerCode }
-            });
+            const customer = await firestore.customers.findByCode(body.customerCode);
             if (customer) {
                 data.customerId = customer.id;
                 // Auto-assign salesperson from customer if not specified
@@ -45,9 +43,7 @@ export async function POST(req: Request) {
 
         // Lookup Salesperson by code if salespersonId not provided
         if (!data.salespersonId && body.salesCode) {
-            const salesperson = await prisma.salesperson.findFirst({
-                where: { code: body.salesCode }
-            });
+            const salesperson = await firestore.salespersons.findByCode(body.salesCode);
             if (salesperson) {
                 data.salespersonId = salesperson.id;
             }
@@ -56,11 +52,7 @@ export async function POST(req: Request) {
         // 1. Determine Rate Card
         let rateCardId = data.rateCardUsedId;
         if (!rateCardId) {
-            const activeCard = await prisma.rateCard.findFirst({
-                where: { status: 'ACTIVE' }
-            });
-            // If no active card, we can't auto-calc cost properly unless we assume 0 or error.
-            // User blueprint implies system must have one ACTIVE.
+            const activeCard = await firestore.rateCards.findActive();
             if (!activeCard) {
                 return NextResponse.json({ error: "No active rate card found. Please activate one first." }, { status: 400 });
             }
@@ -68,18 +60,11 @@ export async function POST(req: Request) {
         }
 
         // 2. Fetch Rates
-        // 2. Fetch Rates (Only if AUTO or just for reference)
         let rateCbm = 0;
         let rateKg = 0;
-        let rateRow = null;
 
         if (rateCardId) {
-            rateRow = await prisma.rateRow.findFirst({
-                where: {
-                    rateCardId: rateCardId,
-                    productType: data.productType
-                }
-            });
+            const rateRow = await firestore.rateCards.getRow(rateCardId, data.productType);
 
             if (rateRow) {
                 // Select rates based on Transport
@@ -94,18 +79,9 @@ export async function POST(req: Request) {
         }
 
         // 3. Calculate Cost
-        // Logic from MASTER_LOGIC.md 5.2.A & 5.2.B
         let costResult;
 
-        // If Manual mode is requested AND manual cost is provided
         if (data.costMode === 'MANUAL' && data.costManual !== undefined) {
-            // We can use computeCost for manual too if we adapt it, but simpler to just set values
-            // Or better, let's keep the logic consistent.
-            // Wait, computeCost in calc.ts is purely for AUTO calculation.
-            // We handle MANUAL selection here.
-
-            // Still calculate auto cost for reference if rates available? 
-            // Logic doesn't mandate it, but it's good practice.
             const autoCalc = computeCost({
                 weightKg: data.weightKg,
                 cbm: data.cbm,
@@ -114,14 +90,12 @@ export async function POST(req: Request) {
             });
 
             costResult = {
-                costCbm: autoCalc.costCbm, // Keep reference
-                costKg: autoCalc.costKg,   // Keep reference
+                costCbm: autoCalc.costCbm,
+                costKg: autoCalc.costKg,
                 costFinal: data.costManual,
                 costRule: 'MANUAL' as const
             };
-
         } else {
-            // AUTO Mode
             costResult = computeCost({
                 weightKg: data.weightKg,
                 cbm: data.cbm,
@@ -139,38 +113,37 @@ export async function POST(req: Request) {
         const { base, suffix } = parseTracking(data.trackingNo);
 
         // 6. DB Create
-        const shipment = await prisma.shipment.create({
-            data: {
-                dateIn: data.dateIn ? new Date(data.dateIn) : undefined,
-                monthKey: data.dateIn ? data.dateIn.substring(0, 7) : null, // YYYY-MM
-                trackingNo: data.trackingNo,
-                trackingBase: base,
-                trackingSuffix: suffix,
+        const shipment = await firestore.shipments.create({
+            dateIn: data.dateIn ? new Date(data.dateIn) : undefined,
+            monthKey: data.dateIn ? data.dateIn.substring(0, 7) : undefined,
+            trackingNo: data.trackingNo,
+            trackingBase: base,
+            trackingSuffix: suffix === null ? undefined : suffix,
 
-                customerId: data.customerId,
-                salespersonId: data.salespersonId,
 
-                productType: data.productType,
-                transport: data.transport,
+            customerId: data.customerId,
+            salespersonId: data.salespersonId,
 
-                weightKg: data.weightKg,
-                cbm: data.cbm,
+            productType: data.productType,
+            transport: data.transport,
 
-                sellBase: data.sellBase,
+            weightKg: data.weightKg,
+            cbm: data.cbm,
 
-                costMode: data.costMode || 'AUTO',
-                costManual: data.costManual,
+            sellBase: data.sellBase,
 
-                rateCardUsedId: rateCardId,
+            costMode: data.costMode || 'AUTO',
+            costManual: data.costManual,
 
-                costCbm: costCbm,
-                costKg: costKg,
-                costFinal: costFinal,
-                costRule: costRule,
+            rateCardUsedId: rateCardId,
 
-                commissionMethod: commResult.commissionMethod,
-                commissionValue: commResult.commissionValue,
-            }
+            costCbm: costCbm,
+            costKg: costKg,
+            costFinal: costFinal,
+            costRule: costRule,
+
+            commissionMethod: commResult.commissionMethod,
+            commissionValue: commResult.commissionValue,
         });
 
         return NextResponse.json(shipment);
@@ -190,22 +163,39 @@ export async function GET(req: Request) {
     const customerId = searchParams.get('customerId');
     const salesId = searchParams.get('salesId');
 
-    const where: any = {};
-    if (month) where.monthKey = month;
-    if (customerId) where.customerId = customerId;
-    if (salesId) where.salespersonId = salesId;
+    const filters: {
+        monthKey?: string;
+        customerId?: string;
+        salespersonId?: string;
+    } = {};
 
-    const shipments = await prisma.shipment.findMany({
-        where,
-        include: {
-            customer: true,
-            salesperson: true,
-            rateCardUsed: {
-                select: { name: true }
-            }
-        },
-        orderBy: { createdAt: 'desc' }
-    });
+    if (month) filters.monthKey = month;
+    if (customerId) filters.customerId = customerId;
+    if (salesId) filters.salespersonId = salesId;
 
-    return NextResponse.json({ success: true, data: shipments });
+    const shipments = await firestore.shipments.findAll(filters);
+
+    // Populate relations
+    const populatedShipments = await Promise.all(
+        shipments.map(async (shipment) => {
+            const customer = shipment.customerId
+                ? await firestore.customers.findById(shipment.customerId)
+                : null;
+            const salesperson = shipment.salespersonId
+                ? await firestore.salespersons.findById(shipment.salespersonId)
+                : null;
+            const rateCardUsed = shipment.rateCardUsedId
+                ? await firestore.rateCards.findById(shipment.rateCardUsedId)
+                : null;
+
+            return {
+                ...shipment,
+                customer,
+                salesperson,
+                rateCardUsed: rateCardUsed ? { name: rateCardUsed.name } : null,
+            };
+        })
+    );
+
+    return NextResponse.json({ success: true, data: populatedShipments });
 }

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import prisma from '@/lib/prisma';
+import { firestore } from '@/lib/firestore';
 
 // POST assign customer to salesperson
 export async function POST(
@@ -16,9 +16,7 @@ export async function POST(
     const { id } = await params;
 
     // Check role
-    const user = await prisma.user.findUnique({
-        where: { email: session.user?.email ?? '' }
-    });
+    const user = await firestore.users.findByEmail(session.user?.email ?? '');
 
     if (!user || !['MANAGER', 'ADMIN'].includes(user.role)) {
         return NextResponse.json(
@@ -34,21 +32,15 @@ export async function POST(
         // Either find by code or use provided id
         let customer;
         if (customerId) {
-            customer = await prisma.customer.findUnique({
-                where: { id: customerId }
-            });
+            customer = await firestore.customers.findById(customerId);
         } else if (customerCode) {
-            customer = await prisma.customer.findUnique({
-                where: { code: customerCode }
-            });
+            customer = await firestore.customers.findByCode(customerCode);
 
             // Create customer if not exists
             if (!customer) {
-                customer = await prisma.customer.create({
-                    data: {
-                        code: customerCode,
-                        assignedSalespersonId: id
-                    }
+                customer = await firestore.customers.create({
+                    code: customerCode,
+                    assignedSalespersonId: id
                 });
                 return NextResponse.json({
                     success: true,
@@ -68,9 +60,8 @@ export async function POST(
         }
 
         // Update customer assignment
-        const updated = await prisma.customer.update({
-            where: { id: customer.id },
-            data: { assignedSalespersonId: id }
+        const updated = await firestore.customers.update(customer.id, {
+            assignedSalespersonId: id
         });
 
         return NextResponse.json({
@@ -97,9 +88,7 @@ export async function DELETE(
     const { id } = await params;
 
     // Check role
-    const user = await prisma.user.findUnique({
-        where: { email: session.user?.email ?? '' }
-    });
+    const user = await firestore.users.findByEmail(session.user?.email ?? '');
 
     if (!user || !['MANAGER', 'ADMIN'].includes(user.role)) {
         return NextResponse.json(
@@ -120,14 +109,9 @@ export async function DELETE(
         }
 
         // Check if customer belongs to this salesperson
-        const customer = await prisma.customer.findFirst({
-            where: {
-                id: customerId,
-                assignedSalespersonId: id
-            }
-        });
+        const customer = await firestore.customers.findById(customerId);
 
-        if (!customer) {
+        if (!customer || customer.assignedSalespersonId !== id) {
             return NextResponse.json(
                 { error: 'ลูกค้านี้ไม่ได้อยู่ในความดูแลของเซลล์นี้' },
                 { status: 400 }
@@ -135,9 +119,8 @@ export async function DELETE(
         }
 
         // Remove assignment
-        await prisma.customer.update({
-            where: { id: customerId },
-            data: { assignedSalespersonId: null }
+        await firestore.customers.update(customerId, {
+            assignedSalespersonId: undefined
         });
 
         return NextResponse.json({

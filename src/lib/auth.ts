@@ -1,7 +1,7 @@
 import { NextAuthOptions } from "next-auth";
-import CredentialsProvider from "next-auth/providers/credentials";
-import { prisma } from "@/lib/db";
-import bcrypt from "bcryptjs";
+import GoogleProvider from "next-auth/providers/google";
+import { firestore } from "@/lib/firestore";
+import { Role } from "@/lib/enums";
 
 export const authOptions: NextAuthOptions = {
     session: {
@@ -11,47 +11,31 @@ export const authOptions: NextAuthOptions = {
         signIn: "/login",
     },
     providers: [
-        CredentialsProvider({
-            name: "Credentials",
-            credentials: {
-                email: { label: "Email", type: "email" },
-                password: { label: "Password", type: "password" },
-            },
-            async authorize(credentials) {
-                if (!credentials?.email || !credentials?.password) {
-                    return null;
-                }
-
-                const user = await prisma.user.findUnique({
-                    where: {
-                        email: credentials.email,
-                    },
-                });
-
-                if (!user || !user.password) {
-                    return null;
-                }
-
-                // Check password with bcrypt
-                const isPasswordValid = await bcrypt.compare(
-                    credentials.password,
-                    user.password
-                );
-
-                if (!isPasswordValid) {
-                    return null;
-                }
-
-                return {
-                    id: user.id,
-                    email: user.email,
-                    name: user.name,
-                    role: user.role,
-                };
-            },
+        GoogleProvider({
+            clientId: process.env.GOOGLE_CLIENT_ID!,
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
         }),
     ],
     callbacks: {
+        async signIn({ user, account }) {
+            if (account?.provider === "google" && user.email) {
+                // Check if user exists in Firestore
+                let existingUser = await firestore.users.findByEmail(user.email);
+
+                // If user doesn't exist, create them with default ADMIN role
+                // (You can change this logic to restrict access)
+                if (!existingUser) {
+                    existingUser = await firestore.users.create({
+                        email: user.email,
+                        name: user.name || undefined,
+                        role: Role.ADMIN,
+                    });
+                }
+
+                return true;
+            }
+            return false;
+        },
         async session({ session, token }) {
             if (token && session.user) {
                 session.user.id = token.id as string;
@@ -59,10 +43,14 @@ export const authOptions: NextAuthOptions = {
             }
             return session;
         },
-        async jwt({ token, user }) {
-            if (user) {
-                token.id = user.id;
-                token.role = (user as any).role;
+        async jwt({ token, user, account }) {
+            if (account?.provider === "google" && user?.email) {
+                // Fetch user from Firestore to get role
+                const firestoreUser = await firestore.users.findByEmail(user.email);
+                if (firestoreUser) {
+                    token.id = firestoreUser.id;
+                    token.role = firestoreUser.role;
+                }
             }
             return token;
         },

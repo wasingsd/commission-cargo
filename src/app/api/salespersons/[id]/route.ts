@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import prisma from '@/lib/prisma';
+import { firestore } from '@/lib/firestore';
 
 // GET single salesperson with customers
 export async function GET(
@@ -16,25 +16,26 @@ export async function GET(
     const { id } = await params;
 
     try {
-        const salesperson = await prisma.salesperson.findUnique({
-            where: { id },
-            include: {
-                customers: {
-                    orderBy: { code: 'asc' }
-                },
-                _count: {
-                    select: {
-                        shipments: true
-                    }
-                }
-            }
-        });
+        const salesperson = await firestore.salespersons.findById(id);
 
         if (!salesperson) {
             return NextResponse.json({ error: 'ไม่พบข้อมูลเซลล์' }, { status: 404 });
         }
 
-        return NextResponse.json({ success: true, data: salesperson });
+        // Get customers for this salesperson
+        const customers = await firestore.customers.findBySalesperson(id);
+        const shipmentsCount = await firestore.salespersons.countShipments(id);
+
+        return NextResponse.json({
+            success: true,
+            data: {
+                ...salesperson,
+                customers,
+                _count: {
+                    shipments: shipmentsCount
+                }
+            }
+        });
     } catch (error: any) {
         console.error('Error fetching salesperson:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
@@ -54,9 +55,7 @@ export async function PUT(
     const { id } = await params;
 
     // Check role
-    const user = await prisma.user.findUnique({
-        where: { email: session.user?.email ?? '' }
-    });
+    const user = await firestore.users.findByEmail(session.user?.email ?? '');
 
     if (!user || !['MANAGER', 'ADMIN'].includes(user.role)) {
         return NextResponse.json(
@@ -71,14 +70,8 @@ export async function PUT(
 
         // Check if changing code and it already exists
         if (code) {
-            const existing = await prisma.salesperson.findFirst({
-                where: {
-                    code,
-                    NOT: { id }
-                }
-            });
-
-            if (existing) {
+            const existing = await firestore.salespersons.findByCode(code);
+            if (existing && existing.id !== id) {
                 return NextResponse.json(
                     { error: 'รหัสเซลล์นี้มีอยู่ในระบบแล้ว' },
                     { status: 400 }
@@ -86,16 +79,14 @@ export async function PUT(
             }
         }
 
-        const salesperson = await prisma.salesperson.update({
-            where: { id },
-            data: {
-                ...(code && { code }),
-                ...(name && { name }),
-                ...(phone !== undefined && { phone: phone || null }),
-                ...(email !== undefined && { email: email || null }),
-                ...(active !== undefined && { active })
-            }
-        });
+        const updateData: Record<string, unknown> = {};
+        if (code) updateData.code = code;
+        if (name) updateData.name = name;
+        if (phone !== undefined) updateData.phone = phone || undefined;
+        if (email !== undefined) updateData.email = email || undefined;
+        if (active !== undefined) updateData.active = active;
+
+        const salesperson = await firestore.salespersons.update(id, updateData);
 
         return NextResponse.json({ success: true, data: salesperson });
     } catch (error: any) {
@@ -117,9 +108,7 @@ export async function DELETE(
     const { id } = await params;
 
     // Check role
-    const user = await prisma.user.findUnique({
-        where: { email: session.user?.email ?? '' }
-    });
+    const user = await firestore.users.findByEmail(session.user?.email ?? '');
 
     if (!user || !['MANAGER', 'ADMIN'].includes(user.role)) {
         return NextResponse.json(
@@ -130,25 +119,18 @@ export async function DELETE(
 
     try {
         // Check if has shipments
-        const shipmentCount = await prisma.shipment.count({
-            where: { salespersonId: id }
-        });
+        const shipmentCount = await firestore.salespersons.countShipments(id);
 
         if (shipmentCount > 0) {
             // Soft delete by deactivating instead
-            await prisma.salesperson.update({
-                where: { id },
-                data: { active: false }
-            });
+            await firestore.salespersons.update(id, { active: false });
             return NextResponse.json({
                 success: true,
                 message: 'ปิดใช้งานเซลล์แล้ว (มีรายการขนส่งที่เกี่ยวข้อง)'
             });
         }
 
-        await prisma.salesperson.delete({
-            where: { id }
-        });
+        await firestore.salespersons.delete(id);
 
         return NextResponse.json({ success: true, message: 'ลบข้อมูลเซลล์แล้ว' });
     } catch (error: any) {

@@ -1,3 +1,6 @@
-// Re-export from prisma.ts for backward compatibility
-export { prisma } from './prisma';
-export { default } from './prisma';
+// src/lib/db.ts
+// Database exports - now using Firebase Firestore
+
+export { firestore, firestore as db } from './firestore';
+export { getDb } from './firebase';
+export { default } from './firestore';

@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import prisma from '@/lib/prisma';
+import { firestore } from '@/lib/firestore';
 import { computeCost, computeCommission } from '@/lib/calc';
 import { format } from 'date-fns';
+import { ProductType, Transport } from '@/lib/enums';
 
 interface BulkShipmentRow {
     trackingNo: string;
@@ -35,10 +36,11 @@ export async function POST(req: Request) {
         }
 
         // Get active rate card
-        const activeRateCard = await prisma.rateCard.findFirst({
-            where: { status: 'ACTIVE' },
-            include: { rows: true }
-        });
+        const activeRateCard = await firestore.rateCards.findActive();
+        let activeRateCardWithRows = null;
+        if (activeRateCard) {
+            activeRateCardWithRows = await firestore.rateCards.findById(activeRateCard.id, true);
+        }
 
         const results = {
             success: 0,
@@ -62,20 +64,16 @@ export async function POST(req: Request) {
                 }
 
                 // Find or create customer
-                let customer = await prisma.customer.findUnique({
-                    where: { code: row.customerCode }
-                });
+                let customer = await firestore.customers.findByCode(row.customerCode);
 
                 if (!customer) {
-                    customer = await prisma.customer.create({
-                        data: { code: row.customerCode }
-                    });
+                    customer = await firestore.customers.create({ code: row.customerCode });
                 }
 
                 // Parse tracking
                 const trackingBase = row.trackingNo.replace(/[-_]\d+$/, '');
                 const suffixMatch = row.trackingNo.match(/[-_](\d+)$/);
-                const trackingSuffix = suffixMatch ? parseInt(suffixMatch[1]) : null;
+                const trackingSuffix = suffixMatch ? parseInt(suffixMatch[1]) : undefined;
 
                 // Parse date
                 let dateIn: Date | null = null;
@@ -99,14 +97,14 @@ export async function POST(req: Request) {
                 const monthKey = format(dateIn, 'yyyy-MM');
 
                 // Get salesperson from customer
-                const salespersonId = customer.assignedSalespersonId || null;
+                const salespersonId = customer.assignedSalespersonId || undefined;
 
                 // Calculate cost
                 let rateCbm = 0;
                 let rateKg = 0;
 
-                if (activeRateCard && activeRateCard.rows) {
-                    const rateRow = activeRateCard.rows.find(
+                if (activeRateCardWithRows && activeRateCardWithRows.rows) {
+                    const rateRow = activeRateCardWithRows.rows.find(
                         r => r.productType === (row.productType || 'GENERAL')
                     );
                     if (rateRow) {
@@ -134,30 +132,28 @@ export async function POST(req: Request) {
                 );
 
                 // Create shipment
-                await prisma.shipment.create({
-                    data: {
-                        dateIn,
-                        monthKey,
-                        trackingNo: row.trackingNo,
-                        trackingBase,
-                        trackingSuffix,
-                        customerId: customer.id,
-                        salespersonId,
-                        productType: row.productType || 'GENERAL',
-                        transport: row.transport || 'TRUCK',
-                        weightKg: row.weightKg || 0,
-                        cbm: row.cbm || 0,
-                        sellBase: row.sellBase || 0,
-                        costMode: 'AUTO',
-                        rateCardUsedId: activeRateCard?.id || null,
-                        costCbm: costResult.costCbm,
-                        costKg: costResult.costKg,
-                        costFinal: costResult.costFinal,
-                        costRule: costResult.costRule,
-                        commissionMethod: commResult.commissionMethod,
-                        commissionValue: commResult.commissionValue,
-                        note: row.note || null
-                    }
+                await firestore.shipments.create({
+                    dateIn,
+                    monthKey,
+                    trackingNo: row.trackingNo,
+                    trackingBase,
+                    trackingSuffix,
+                    customerId: customer.id,
+                    salespersonId,
+                    productType: (row.productType || 'GENERAL') as ProductType,
+                    transport: (row.transport || 'TRUCK') as Transport,
+                    weightKg: row.weightKg || 0,
+                    cbm: row.cbm || 0,
+                    sellBase: row.sellBase || 0,
+                    costMode: 'AUTO',
+                    rateCardUsedId: activeRateCard?.id,
+                    costCbm: costResult.costCbm,
+                    costKg: costResult.costKg,
+                    costFinal: costResult.costFinal,
+                    costRule: costResult.costRule,
+                    commissionMethod: commResult.commissionMethod,
+                    commissionValue: commResult.commissionValue,
+                    note: row.note,
                 });
 
                 results.success++;

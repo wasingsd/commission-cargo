@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { firestore } from '@/lib/firestore';
 
 export async function GET(request: NextRequest) {
     try {
@@ -14,30 +14,28 @@ export async function GET(request: NextRequest) {
         const customerId = searchParams.get('customerId');
         const salespersonId = searchParams.get('salespersonId');
 
-        // Build where clause
-        const where: Record<string, unknown> = {};
+        // Build filters
+        const filters: {
+            monthKey?: string;
+            customerId?: string;
+            salespersonId?: string;
+        } = {};
 
-        if (month) {
-            const startDate = new Date(`${month}-01`);
-            const endDate = new Date(startDate);
-            endDate.setMonth(endDate.getMonth() + 1);
-            where.dateIn = {
-                gte: startDate,
-                lt: endDate,
-            };
-        }
-
-        if (customerId) where.customerId = customerId;
-        if (salespersonId) where.salespersonId = salespersonId;
+        if (month) filters.monthKey = month;
+        if (customerId) filters.customerId = customerId;
+        if (salespersonId) filters.salespersonId = salespersonId;
 
         // Get all shipments matching the filter
-        const shipments = await prisma.shipment.findMany({
-            where,
-            include: {
-                customer: true,
-                salesperson: true,
-            },
-        });
+        const shipments = await firestore.shipments.findAll(filters);
+
+        // Populate relations
+        const shipmentsWithRelations = await Promise.all(
+            shipments.map(async (s) => {
+                const customer = s.customerId ? await firestore.customers.findById(s.customerId) : null;
+                const salesperson = s.salespersonId ? await firestore.salespersons.findById(s.salespersonId) : null;
+                return { ...s, customer, salesperson };
+            })
+        );
 
         // Calculate summaries based on groupBy
         if (groupBy === 'customer') {
@@ -45,31 +43,31 @@ export async function GET(request: NextRequest) {
             const customerMap = new Map<string, {
                 customerId: string;
                 customerCode: string;
-                customerName: string | null;
+                customerName: string | null | undefined;
                 totalShipments: number;
                 totalSellBase: number;
                 totalCostFinal: number;
                 totalCommission: number;
             }>();
 
-            shipments.forEach((s) => {
+            shipmentsWithRelations.forEach((s) => {
                 if (!s.customerId || !s.customer) return; // Skip if no customer
                 const key = s.customerId;
                 const existing = customerMap.get(key);
                 if (existing) {
                     existing.totalShipments += 1;
-                    existing.totalSellBase += Number(s.sellBase);
-                    existing.totalCostFinal += Number(s.costFinal);
-                    existing.totalCommission += Number(s.commissionValue);
+                    existing.totalSellBase += Number(s.sellBase || 0);
+                    existing.totalCostFinal += Number(s.costFinal || 0);
+                    existing.totalCommission += Number(s.commissionValue || 0);
                 } else {
                     customerMap.set(key, {
                         customerId: s.customerId,
                         customerCode: s.customer.code,
                         customerName: s.customer.name,
                         totalShipments: 1,
-                        totalSellBase: Number(s.sellBase),
-                        totalCostFinal: Number(s.costFinal),
-                        totalCommission: Number(s.commissionValue),
+                        totalSellBase: Number(s.sellBase || 0),
+                        totalCostFinal: Number(s.costFinal || 0),
+                        totalCommission: Number(s.commissionValue || 0),
                     });
                 }
             });
@@ -99,24 +97,24 @@ export async function GET(request: NextRequest) {
                 totalCommission: number;
             }>();
 
-            shipments.forEach((s) => {
+            shipmentsWithRelations.forEach((s) => {
                 if (!s.salespersonId || !s.salesperson) return;
                 const key = s.salespersonId;
                 const existing = salesMap.get(key);
                 if (existing) {
                     existing.totalShipments += 1;
-                    existing.totalSellBase += Number(s.sellBase);
-                    existing.totalCostFinal += Number(s.costFinal);
-                    existing.totalCommission += Number(s.commissionValue);
+                    existing.totalSellBase += Number(s.sellBase || 0);
+                    existing.totalCostFinal += Number(s.costFinal || 0);
+                    existing.totalCommission += Number(s.commissionValue || 0);
                 } else {
                     salesMap.set(key, {
                         salespersonId: s.salespersonId,
                         salesCode: s.salesperson.code,
                         salesName: s.salesperson.name,
                         totalShipments: 1,
-                        totalSellBase: Number(s.sellBase),
-                        totalCostFinal: Number(s.costFinal),
-                        totalCommission: Number(s.commissionValue),
+                        totalSellBase: Number(s.sellBase || 0),
+                        totalCostFinal: Number(s.costFinal || 0),
+                        totalCommission: Number(s.commissionValue || 0),
                     });
                 }
             });
@@ -144,22 +142,24 @@ export async function GET(request: NextRequest) {
                 totalCommission: number;
             }>();
 
-            shipments.forEach((s) => {
+            shipmentsWithRelations.forEach((s) => {
                 if (!s.dateIn) return; // Skip if no dateIn
-                const monthKey = s.dateIn.toISOString().substring(0, 7); // YYYY-MM
+                const monthKey = s.dateIn instanceof Date
+                    ? s.dateIn.toISOString().substring(0, 7)
+                    : String(s.dateIn).substring(0, 7);
                 const existing = monthMap.get(monthKey);
                 if (existing) {
                     existing.totalShipments += 1;
-                    existing.totalSellBase += Number(s.sellBase);
-                    existing.totalCostFinal += Number(s.costFinal);
-                    existing.totalCommission += Number(s.commissionValue);
+                    existing.totalSellBase += Number(s.sellBase || 0);
+                    existing.totalCostFinal += Number(s.costFinal || 0);
+                    existing.totalCommission += Number(s.commissionValue || 0);
                 } else {
                     monthMap.set(monthKey, {
                         month: monthKey,
                         totalShipments: 1,
-                        totalSellBase: Number(s.sellBase),
-                        totalCostFinal: Number(s.costFinal),
-                        totalCommission: Number(s.commissionValue),
+                        totalSellBase: Number(s.sellBase || 0),
+                        totalCostFinal: Number(s.costFinal || 0),
+                        totalCommission: Number(s.commissionValue || 0),
                     });
                 }
             });
@@ -178,14 +178,14 @@ export async function GET(request: NextRequest) {
         }
 
         // Default: overall summary
-        const totalSellBase = shipments.reduce((sum, s) => sum + Number(s.sellBase), 0);
-        const totalCostFinal = shipments.reduce((sum, s) => sum + Number(s.costFinal), 0);
-        const totalCommission = shipments.reduce((sum, s) => sum + Number(s.commissionValue), 0);
+        const totalSellBase = shipmentsWithRelations.reduce((sum, s) => sum + Number(s.sellBase || 0), 0);
+        const totalCostFinal = shipmentsWithRelations.reduce((sum, s) => sum + Number(s.costFinal || 0), 0);
+        const totalCommission = shipmentsWithRelations.reduce((sum, s) => sum + Number(s.commissionValue || 0), 0);
 
         return NextResponse.json({
             success: true,
             data: {
-                totalShipments: shipments.length,
+                totalShipments: shipmentsWithRelations.length,
                 totalSellBase,
                 totalCostFinal,
                 totalCommission,

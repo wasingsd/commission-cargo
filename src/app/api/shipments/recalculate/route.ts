@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { firestore } from '@/lib/firestore';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { computeCommission, computeCost } from '@/lib/calc';
-import { parseTracking } from '@/lib/tracking';
 
 export async function POST(req: Request) {
     const session = await getServerSession(authOptions);
@@ -18,40 +17,37 @@ export async function POST(req: Request) {
         }
 
         // Build where clause
-        const where: any = {};
-        if (filters?.monthKey) where.monthKey = filters.monthKey;
-        if (filters?.customerId) where.customerId = filters.customerId;
-        if (filters?.salespersonId) where.salespersonId = filters.salespersonId;
-
-        // Safety: prevent updating all if no filters provided?
-        // User might want to update all, but usually risky.
-        if (Object.keys(where).length === 0) {
-            // return NextResponse.json({ error: "At least one filter is required" }, { status: 400 });
-        }
+        const queryFilters: {
+            monthKey?: string;
+            customerId?: string;
+            salespersonId?: string;
+        } = {};
+        if (filters?.monthKey) queryFilters.monthKey = filters.monthKey;
+        if (filters?.customerId) queryFilters.customerId = filters.customerId;
+        if (filters?.salespersonId) queryFilters.salespersonId = filters.salespersonId;
 
         // Fetch shipments
-        const shipments = await prisma.shipment.findMany({ where });
+        const shipments = await firestore.shipments.findAll(queryFilters);
         if (shipments.length === 0) {
             return NextResponse.json({ message: "No shipments found matching filters", count: 0 });
         }
 
-        // Fetch new rate card rows
-        const rateRows = await prisma.rateRow.findMany({
-            where: { rateCardId: newRateCardId }
-        });
+        // Fetch new rate card with rows
+        const rateCard = await firestore.rateCards.findById(newRateCardId, true);
+        const rateRows = rateCard?.rows || [];
 
         let count = 0;
-        let totalDiff = 0;
 
         // Calculate stats for Audit
         const beforeState = {
             count: shipments.length,
-            sumCost: shipments.reduce((s, x) => s + Number(x.costFinal), 0),
-            sumCommission: shipments.reduce((s, x) => s + Number(x.commissionValue), 0)
+            sumCost: shipments.reduce((s, x) => s + Number(x.costFinal || 0), 0),
+            sumCommission: shipments.reduce((s, x) => s + Number(x.commissionValue || 0), 0)
         };
 
-        // We can use a transaction, but for many rows it might lock.
-        // Loop update.
+        // Prepare bulk updates
+        const updates: { id: string; data: Record<string, unknown> }[] = [];
+
         for (const sh of shipments) {
             // Find rate row for this product type
             const rateRow = rateRows.find(r => r.productType === sh.productType);
@@ -80,8 +76,8 @@ export async function POST(req: Request) {
             // Assuming sellBase doesn't change
             const commRes = computeCommission(Number(sh.sellBase), costRes.costFinal);
 
-            await prisma.shipment.update({
-                where: { id: sh.id },
+            updates.push({
+                id: sh.id,
                 data: {
                     rateCardUsedId: newRateCardId,
                     costCbm: costRes.costCbm,
@@ -95,18 +91,17 @@ export async function POST(req: Request) {
             count++;
         }
 
-        // After stats (approximate, since we didn't re-fetch, but we know new values)
-        // To be accurate, we could sum inside the loop.
+        // Perform bulk update
+        await firestore.shipments.bulkUpdate(updates);
 
-        await prisma.auditLog.create({
-            data: {
-                actorUserId: session.user.id,
-                entityType: 'SHIPMENT',
-                entityId: 'BULK', // or use a composite ID or just generic
-                action: 'RECALC',
-                message: `Recalculated ${count} shipments. Filter: ${JSON.stringify(filters)}. RateCard: ${newRateCardId}`,
-                beforeJson: beforeState as any
-            }
+        // Create audit log
+        await firestore.auditLogs.create({
+            actorUserId: session.user.id,
+            entityType: 'SHIPMENT',
+            entityId: 'BULK',
+            action: 'RECALC',
+            message: `Recalculated ${count} shipments. Filter: ${JSON.stringify(filters)}. RateCard: ${newRateCardId}`,
+            beforeJson: beforeState as Record<string, unknown>
         });
 
         return NextResponse.json({ success: true, count });

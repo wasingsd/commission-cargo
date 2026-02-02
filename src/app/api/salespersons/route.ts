@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import prisma from '@/lib/prisma';
+import { firestore } from '@/lib/firestore';
 
 // GET all salespersons
 export async function GET(req: Request) {
@@ -11,19 +11,24 @@ export async function GET(req: Request) {
     }
 
     try {
-        const salespersons = await prisma.salesperson.findMany({
-            include: {
-                _count: {
-                    select: {
-                        customers: true,
-                        shipments: true
-                    }
-                }
-            },
-            orderBy: { createdAt: 'desc' }
-        });
+        const salespersons = await firestore.salespersons.findAll();
 
-        return NextResponse.json({ success: true, data: salespersons });
+        // Add counts for each salesperson
+        const salespersonsWithCounts = await Promise.all(
+            salespersons.map(async (sp) => {
+                const customersCount = await firestore.salespersons.countCustomers(sp.id);
+                const shipmentsCount = await firestore.salespersons.countShipments(sp.id);
+                return {
+                    ...sp,
+                    _count: {
+                        customers: customersCount,
+                        shipments: shipmentsCount
+                    }
+                };
+            })
+        );
+
+        return NextResponse.json({ success: true, data: salespersonsWithCounts });
     } catch (error: any) {
         console.error('Error fetching salespersons:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
@@ -38,9 +43,7 @@ export async function POST(req: Request) {
     }
 
     // Check role - only MANAGER or ADMIN can create salespersons
-    const user = await prisma.user.findUnique({
-        where: { email: session.user?.email ?? '' }
-    });
+    const user = await firestore.users.findByEmail(session.user?.email ?? '');
 
     if (!user || !['MANAGER', 'ADMIN'].includes(user.role)) {
         return NextResponse.json(
@@ -61,9 +64,7 @@ export async function POST(req: Request) {
         }
 
         // Check if code already exists
-        const existing = await prisma.salesperson.findUnique({
-            where: { code }
-        });
+        const existing = await firestore.salespersons.findByCode(code);
 
         if (existing) {
             return NextResponse.json(
@@ -72,14 +73,12 @@ export async function POST(req: Request) {
             );
         }
 
-        const salesperson = await prisma.salesperson.create({
-            data: {
-                code,
-                name,
-                phone: phone || null,
-                email: email || null,
-                active: true
-            }
+        const salesperson = await firestore.salespersons.create({
+            code,
+            name,
+            phone: phone || undefined,
+            email: email || undefined,
+            active: true
         });
 
         return NextResponse.json({ success: true, data: salesperson });

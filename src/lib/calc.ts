@@ -1,4 +1,4 @@
-import { CostRule, CommissionMethod } from '@prisma/client';
+import { CostRule, CommissionMethod } from './enums';
 
 export interface CalcInputs {
     weightKg?: number | null;

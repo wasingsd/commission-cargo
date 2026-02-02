@@ -4,7 +4,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { firestore } from '@/lib/firestore';
+import { getDb, Collections } from '@/lib/firebase';
 
 export async function GET(request: NextRequest) {
     try {
@@ -16,49 +17,91 @@ export async function GET(request: NextRequest) {
         const page = parseInt(searchParams.get('page') || '1');
         const limit = parseInt(searchParams.get('limit') || '50');
 
-        // Build where clause
-        const where: Record<string, unknown> = {};
+        // Build query
+        let query = getDb().collection(Collections.AUDIT_LOGS).orderBy('createdAt', 'desc');
 
-        if (entityType) where.entityType = entityType;
-        if (action) where.action = action;
-
-        if (startDate || endDate) {
-            where.createdAt = {};
-            if (startDate) {
-                (where.createdAt as Record<string, Date>).gte = new Date(startDate);
-            }
-            if (endDate) {
-                const end = new Date(endDate);
-                end.setDate(end.getDate() + 1);
-                (where.createdAt as Record<string, Date>).lt = end;
-            }
+        if (entityType) {
+            query = query.where('entityType', '==', entityType);
         }
 
-        // Get total count
-        const total = await prisma.auditLog.count({ where });
+        if (action) {
+            query = query.where('action', '==', action);
+        }
 
-        // Get logs with pagination
-        const logs = await prisma.auditLog.findMany({
-            where,
-            include: {
-                actorUser: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true,
-                    },
-                },
-            },
-            orderBy: {
-                createdAt: 'desc',
-            },
-            skip: (page - 1) * limit,
-            take: limit,
+        // Note: Firestore doesn't support complex date range queries with multiple where clauses easily
+        // For simplicity, we'll filter in memory or use compound queries
+
+        const snapshot = await query.limit(limit * page).get();
+
+        // Filter by date if needed and apply pagination
+        let logs: Array<{
+            id: string;
+            actorUserId?: string;
+            entityType?: string;
+            entityId?: string;
+            action?: string;
+            message?: string;
+            beforeJson?: unknown;
+            afterJson?: unknown;
+            createdAt: Date | string;
+        }> = snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                actorUserId: data.actorUserId,
+                entityType: data.entityType,
+                entityId: data.entityId,
+                action: data.action,
+                message: data.message,
+                beforeJson: data.beforeJson,
+                afterJson: data.afterJson,
+                createdAt: data.createdAt?.toDate?.() || data.createdAt,
+            };
         });
+
+        // Date filtering in memory
+        if (startDate) {
+            const start = new Date(startDate);
+            logs = logs.filter(log => {
+                const logDate = log.createdAt instanceof Date ? log.createdAt : new Date(log.createdAt);
+                return logDate >= start;
+            });
+        }
+        if (endDate) {
+            const end = new Date(endDate);
+            end.setDate(end.getDate() + 1);
+            logs = logs.filter(log => {
+                const logDate = log.createdAt instanceof Date ? log.createdAt : new Date(log.createdAt);
+                return logDate < end;
+            });
+        }
+
+        // Apply pagination
+        const total = logs.length;
+        const startIndex = (page - 1) * limit;
+        const paginatedLogs = logs.slice(startIndex, startIndex + limit);
+
+        // Get actor user info
+        const logsWithActors = await Promise.all(
+            paginatedLogs.map(async (log) => {
+                let actorUser = null;
+                if (log.actorUserId) {
+                    const user = await firestore.users.findById(log.actorUserId);
+                    if (user) {
+                        actorUser = {
+                            id: user.id,
+                            name: user.name,
+                            email: user.email,
+                        };
+                    }
+                }
+                return { ...log, actorUser };
+            })
+        );
 
         return NextResponse.json({
             success: true,
-            data: logs,
+            data: logsWithActors,
             total,
             page,
             limit,
