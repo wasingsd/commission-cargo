@@ -25,6 +25,6 @@ export const config = {
          * - login (login page)
          * - public (public folder assets)
          */
-        "/((?!api|_next/static|_next/image|favicon.ico|logo.svg|login|public).*)",
+        "/((?!api|_next/static|_next/image|favicon.ico|logo.svg|login|public|.*\\..*).*)",
     ],
 };
