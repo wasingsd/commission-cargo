@@ -23,31 +23,38 @@ export const authOptions: NextAuthOptions = {
                     throw new Error("กรุณากรอกอีเมลและรหัสผ่าน");
                 }
 
-                const user = await firestore.users.findByEmail(credentials.email);
+                try {
+                    const user = await firestore.users.findByEmail(credentials.email);
 
-                if (!user || !user.password) {
-                    throw new Error("ไม่พบผู้ใช้งานหรือบัญชียังไม่ได้ตั้งรหัสผ่าน");
+                    if (!user || !user.password) {
+                        console.error("Auth Error: User not found or no password for", credentials.email);
+                        throw new Error("ไม่พบผู้ใช้งานหรือบัญชียังไม่ได้ตั้งรหัสผ่าน");
+                    }
+
+                    const isPasswordCorrect = await bcrypt.compare(
+                        credentials.password,
+                        user.password
+                    );
+
+                    if (!isPasswordCorrect) {
+                        console.error("Auth Error: Invalid password for", credentials.email);
+                        throw new Error("รหัสผ่านไม่ถูกต้อง");
+                    }
+
+                    return {
+                        id: user.id as string,
+                        email: user.email as string,
+                        name: user.name as string,
+                        role: user.role as Role,
+                    };
+                } catch (error) {
+                    console.error("Critical Auth Error:", error);
+                    throw error;
                 }
-
-                const isPasswordCorrect = await bcrypt.compare(
-                    credentials.password,
-                    user.password
-                );
-
-                if (!isPasswordCorrect) {
-                    throw new Error("รหัสผ่านไม่ถูกต้อง");
-                }
-
-                return {
-                    id: user.id,
-                    email: user.email,
-                    name: user.name,
-                    role: user.role,
-                };
             }
         }),
     ],
-    secret: process.env.NEXTAUTH_SECRET,
+    secret: process.env.NEXTAUTH_SECRET || "dev_secret_key_12345",
     callbacks: {
         async signIn({ account }) {
             if (account?.provider === "credentials") {
