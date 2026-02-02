@@ -40,9 +40,9 @@ function getFirebaseApp(): App {
 
             app = initializeApp({
                 credential: cert({
-                    projectId: process.env.FIREBASE_PROJECT_ID,
-                    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-                    privateKey: privateKey,
+                    projectId: process.env.FIREBASE_PROJECT_ID?.trim(),
+                    clientEmail: process.env.FIREBASE_CLIENT_EMAIL?.trim(),
+                    privateKey: privateKey.trim(),
                 }),
             });
         }
