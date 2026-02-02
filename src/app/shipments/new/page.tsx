@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { MainLayout } from '@/components/MainLayout';
-import { formatNumber, computeCost, parseTrackingNumber, computeCommission } from '@/lib/calc';
+import { formatNumber, computeCost, computeCommission } from '@/lib/calc';
+import { parseTracking } from '@/lib/tracking';
 import { ProductType, Transport } from '@/lib/enums';
 import { Calculator, Truck, Ship, AlertTriangle, Package, ArrowLeft, ChevronDown, ChevronUp, Sparkles, Check, Save } from 'lucide-react';
 

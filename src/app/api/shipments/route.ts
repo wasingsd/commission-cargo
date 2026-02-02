@@ -4,7 +4,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { computeCommission, computeCost } from '@/lib/calc';
 import { parseTracking } from '@/lib/tracking';
-import { ProductType, Transport, CostMode } from '@/lib/enums';
+import { ProductType, Transport, CostMode, Role } from '@/lib/enums';
 
 export async function POST(req: Request) {
     const session = await getServerSession(authOptions);
@@ -172,6 +172,16 @@ export async function GET(req: Request) {
     if (month) filters.monthKey = month;
     if (customerId) filters.customerId = customerId;
     if (salesId) filters.salespersonId = salesId;
+
+    // Role-based filtering
+    if (session.user.role === Role.SALE) {
+        const salesperson = await firestore.salespersons.findByEmail(session.user.email!);
+        if (!salesperson) {
+            // If user is a sale but doesn't have a linked salesperson record, return empty list
+            return NextResponse.json({ success: true, data: [] });
+        }
+        filters.salespersonId = salesperson.id;
+    }
 
     const shipments = await firestore.shipments.findAll(filters);
 

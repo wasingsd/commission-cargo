@@ -6,23 +6,44 @@ import { getFirestore } from 'firebase-admin/firestore';
 import * as bcrypt from 'bcryptjs';
 import * as dotenv from 'dotenv';
 
+import * as fs from 'fs';
+import * as path from 'path';
+
 // Load environment variables
-dotenv.config({ path: '.env.local' });
+dotenv.config();
 
 // Initialize Firebase Admin
 if (getApps().length === 0) {
-    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+    const serviceAccountPath = path.join(process.cwd(), 'commission-cargo-firebase-adminsdk-fbsvc-5d1acb3134.json');
 
-    initializeApp({
-        credential: cert({
-            projectId: process.env.FIREBASE_PROJECT_ID,
-            clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-            privateKey: privateKey,
-        }),
-    });
+    if (fs.existsSync(serviceAccountPath)) {
+        const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
+        initializeApp({
+            credential: cert(serviceAccount),
+        });
+        console.log('✅ Initialized Firebase using service account file.');
+    } else {
+        let privateKey = process.env.FIREBASE_PRIVATE_KEY;
+        if (privateKey) {
+            if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
+                privateKey = privateKey.substring(1, privateKey.length - 1);
+            }
+            privateKey = privateKey.replace(/\\n/g, '\n');
+        }
+
+        initializeApp({
+            credential: cert({
+                projectId: process.env.FIREBASE_PROJECT_ID,
+                clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+                privateKey: privateKey,
+            }),
+        });
+        console.log('✅ Initialized Firebase using environment variables.');
+    }
 }
 
 const db = getFirestore();
+db.settings({ ignoreUndefinedProperties: true });
 
 async function seedData() {
     console.log('🔥 Seeding data to Firestore...\n');
@@ -55,7 +76,14 @@ async function seedData() {
             });
             console.log(`   ✅ Created: ${user.email}`);
         } else {
-            console.log(`   ⏭️  Exists: ${user.email}`);
+            // Force update password and role for existing users
+            const doc = existing.docs[0];
+            await doc.ref.update({
+                password: hashedPassword,
+                role: user.role,
+                updatedAt: now
+            });
+            console.log(`   🔄 Updated: ${user.email} (Password reset to password123)`);
         }
     }
 

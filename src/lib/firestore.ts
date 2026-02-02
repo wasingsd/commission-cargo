@@ -171,6 +171,14 @@ export const firestore = {
     // Users
     // ============================================================
     users: {
+        async findAll(): Promise<User[]> {
+            const snapshot = await getDb()
+                .collection(Collections.USERS)
+                .orderBy('createdAt', 'desc')
+                .get();
+            return snapshot.docs.map((doc) => docToData<User>(doc));
+        },
+
         async findById(id: string): Promise<User | null> {
             const doc = await getDb().collection(Collections.USERS).doc(id).get();
             if (!doc.exists) return null;
@@ -231,6 +239,16 @@ export const firestore = {
             const snapshot = await getDb()
                 .collection(Collections.SALESPERSONS)
                 .where('code', '==', code)
+                .limit(1)
+                .get();
+            if (snapshot.empty) return null;
+            return docToData<Salesperson>(snapshot.docs[0]);
+        },
+
+        async findByEmail(email: string): Promise<Salesperson | null> {
+            const snapshot = await getDb()
+                .collection(Collections.SALESPERSONS)
+                .where('email', '==', email)
                 .limit(1)
                 .get();
             if (snapshot.empty) return null;

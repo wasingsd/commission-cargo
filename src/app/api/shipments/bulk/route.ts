@@ -5,6 +5,7 @@ import { firestore } from '@/lib/firestore';
 import { computeCost, computeCommission } from '@/lib/calc';
 import { format } from 'date-fns';
 import { ProductType, Transport } from '@/lib/enums';
+import { parseTracking } from '@/lib/tracking';
 
 interface BulkShipmentRow {
     trackingNo: string;
@@ -64,16 +65,14 @@ export async function POST(req: Request) {
                 }
 
                 // Find or create customer
-                let customer = await firestore.customers.findByCode(row.customerCode);
+                let customer = await firestore.customers.findByCode(row.customerCode.trim());
 
                 if (!customer) {
-                    customer = await firestore.customers.create({ code: row.customerCode });
+                    customer = await firestore.customers.create({ code: row.customerCode.trim() });
                 }
 
                 // Parse tracking
-                const trackingBase = row.trackingNo.replace(/[-_]\d+$/, '');
-                const suffixMatch = row.trackingNo.match(/[-_](\d+)$/);
-                const trackingSuffix = suffixMatch ? parseInt(suffixMatch[1]) : undefined;
+                const { base: trackingBase, suffix: trackingSuffix } = parseTracking(row.trackingNo);
 
                 // Parse date
                 let dateIn: Date | null = null;
@@ -137,7 +136,7 @@ export async function POST(req: Request) {
                     monthKey,
                     trackingNo: row.trackingNo,
                     trackingBase,
-                    trackingSuffix,
+                    trackingSuffix: trackingSuffix ?? undefined,
                     customerId: customer.id,
                     salespersonId,
                     productType: (row.productType || 'GENERAL') as ProductType,
@@ -166,6 +165,16 @@ export async function POST(req: Request) {
                 });
             }
         }
+
+        // Audit Log for Bulk Action
+        await firestore.auditLogs.create({
+            actorUserId: session.user.id,
+            entityType: 'SHIPMENT',
+            entityId: 'BULK_IMPORT',
+            action: 'CREATE',
+            message: `Bulk imported ${results.success} shipments (${results.failed} failed)`,
+            afterJson: { results }
+        });
 
         return NextResponse.json({
             success: true,

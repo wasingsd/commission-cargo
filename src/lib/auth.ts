@@ -1,7 +1,8 @@
 import { NextAuthOptions } from "next-auth";
-import GoogleProvider from "next-auth/providers/google";
+import CredentialsProvider from "next-auth/providers/credentials";
 import { firestore } from "@/lib/firestore";
 import { Role } from "@/lib/enums";
+import bcrypt from "bcryptjs";
 
 export const authOptions: NextAuthOptions = {
     session: {
@@ -11,27 +12,45 @@ export const authOptions: NextAuthOptions = {
         signIn: "/login",
     },
     providers: [
-        GoogleProvider({
-            clientId: process.env.GOOGLE_CLIENT_ID!,
-            clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-        }),
-    ],
-    callbacks: {
-        async signIn({ user, account }) {
-            if (account?.provider === "google" && user.email) {
-                // Check if user exists in Firestore
-                let existingUser = await firestore.users.findByEmail(user.email);
-
-                // If user doesn't exist, create them with default ADMIN role
-                // (You can change this logic to restrict access)
-                if (!existingUser) {
-                    existingUser = await firestore.users.create({
-                        email: user.email,
-                        name: user.name || undefined,
-                        role: Role.ADMIN,
-                    });
+        CredentialsProvider({
+            name: "Credentials",
+            credentials: {
+                email: { label: "Email", type: "email" },
+                password: { label: "Password", type: "password" }
+            },
+            async authorize(credentials) {
+                if (!credentials?.email || !credentials?.password) {
+                    throw new Error("กรุณากรอกอีเมลและรหัสผ่าน");
                 }
 
+                const user = await firestore.users.findByEmail(credentials.email);
+
+                if (!user || !user.password) {
+                    throw new Error("ไม่พบผู้ใช้งานหรือบัญชียังไม่ได้ตั้งรหัสผ่าน");
+                }
+
+                const isPasswordCorrect = await bcrypt.compare(
+                    credentials.password,
+                    user.password
+                );
+
+                if (!isPasswordCorrect) {
+                    throw new Error("รหัสผ่านไม่ถูกต้อง");
+                }
+
+                return {
+                    id: user.id,
+                    email: user.email,
+                    name: user.name,
+                    role: user.role,
+                };
+            }
+        }),
+    ],
+    secret: process.env.NEXTAUTH_SECRET || "dev_secret_key_12345",
+    callbacks: {
+        async signIn({ account }) {
+            if (account?.provider === "credentials") {
                 return true;
             }
             return false;
@@ -43,10 +62,13 @@ export const authOptions: NextAuthOptions = {
             }
             return session;
         },
-        async jwt({ token, user, account }) {
-            if (account?.provider === "google" && user?.email) {
-                // Fetch user from Firestore to get role
-                const firestoreUser = await firestore.users.findByEmail(user.email);
+        async jwt({ token, user }) {
+            if (user) {
+                token.id = user.id;
+                token.role = (user as any).role;
+            } else if (token.email && !token.role) {
+                // Background refresh for role if needed
+                const firestoreUser = await firestore.users.findByEmail(token.email);
                 if (firestoreUser) {
                     token.id = firestoreUser.id;
                     token.role = firestoreUser.role;

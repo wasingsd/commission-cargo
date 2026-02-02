@@ -120,7 +120,7 @@ export async function DELETE(
 
         // Remove assignment
         await firestore.customers.update(customerId, {
-            assignedSalespersonId: undefined
+            assignedSalespersonId: null as any
         });
 
         return NextResponse.json({

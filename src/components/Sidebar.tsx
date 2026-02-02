@@ -14,16 +14,20 @@ import {
     LogOut,
     ChevronRight,
     User as UserIcon,
+    Users as UsersIcon,
+    Building2,
     Loader2
 } from 'lucide-react';
 
 const menuItems = [
     { href: '/dashboard', label: 'แดชบอร์ด', icon: LayoutDashboard },
+    { href: '/users', label: 'จัดการผู้ใช้งาน', icon: UsersIcon, roles: ['ADMIN'] },
+    { href: '/settings', label: 'จัดการเซลล์', icon: Settings },
+    { href: '/customers', label: 'จัดการลูกค้า', icon: Building2 },
     { href: '/rates', label: 'เรทราคาทุน', icon: Coins },
     { href: '/shipments', label: 'รายการขนส่ง', icon: Truck },
     { href: '/summary', label: 'รายงานสรุป', icon: FileText },
-    { href: '/logs', label: 'ประวัติการใช้งาน', icon: ClipboardList },
-    { href: '/settings', label: 'ตั้งค่าเซลล์', icon: Settings },
+    { href: '/logs', label: 'ประวัติการใช้งาน', icon: ClipboardList, roles: ['ADMIN', 'MANAGER'] },
 ];
 
 export function Sidebar() {
@@ -61,27 +65,29 @@ export function Sidebar() {
 
             {/* Navigation */}
             <nav className="flex-1 px-4 mt-2 space-y-1">
-                {menuItems.map((item) => {
-                    const isActive = pathname === item.href || (item.href === '/dashboard' && pathname === '/');
-                    return (
-                        <Link
-                            key={item.href}
-                            href={item.href}
-                            className={`
-                                group flex items-center justify-between px-4 py-3.5 rounded-2xl transition-all duration-200
-                                ${isActive
-                                    ? 'bg-accent-500 text-white shadow-accent shadow-lg'
-                                    : 'text-slate-400 hover:bg-white/5 hover:text-white'}
-                            `}
-                        >
-                            <div className="flex items-center gap-3">
-                                <item.icon className={`w-5 h-5 transition-transform duration-300 group-hover:scale-105 ${isActive ? 'text-white' : 'text-slate-500 group-hover:text-accent-500'}`} />
-                                <span className="font-medium tracking-tight">{item.label}</span>
-                            </div>
-                            {isActive && <ChevronRight className="w-4 h-4 opacity-50" />}
-                        </Link>
-                    );
-                })}
+                {menuItems
+                    .filter(item => !item.roles || item.roles.includes(userRole))
+                    .map((item) => {
+                        const isActive = pathname === item.href || (item.href === '/dashboard' && pathname === '/');
+                        return (
+                            <Link
+                                key={item.href}
+                                href={item.href}
+                                className={`
+                                    group flex items-center justify-between px-4 py-3.5 rounded-2xl transition-all duration-200
+                                    ${isActive
+                                        ? 'bg-accent-500 text-white shadow-accent shadow-lg'
+                                        : 'text-slate-400 hover:bg-white/5 hover:text-white'}
+                                `}
+                            >
+                                <div className="flex items-center gap-3">
+                                    <item.icon className={`w-5 h-5 transition-transform duration-300 group-hover:scale-105 ${isActive ? 'text-white' : 'text-slate-500 group-hover:text-accent-500'}`} />
+                                    <span className="font-medium tracking-tight">{item.label}</span>
+                                </div>
+                                {isActive && <ChevronRight className="w-4 h-4 opacity-50" />}
+                            </Link>
+                        );
+                    })}
             </nav>
 
             {/* Bottom Actions */}

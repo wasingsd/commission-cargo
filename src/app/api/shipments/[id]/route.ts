@@ -7,7 +7,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { firestore } from '@/lib/firestore';
-import { calculateFull, parseTrackingNumber } from '@/lib/calc';
+import { calculateFull } from '@/lib/calc';
+import { parseTracking } from '@/lib/tracking';
 
 export async function GET(
     request: NextRequest,
@@ -65,7 +66,7 @@ export async function PATCH(
         if (body.salespersonId !== undefined) updateData.salespersonId = body.salespersonId || null;
         if (body.trackingNo) {
             updateData.trackingNo = body.trackingNo;
-            const { base, suffix } = parseTrackingNumber(body.trackingNo);
+            const { base, suffix } = parseTracking(body.trackingNo);
             updateData.trackingBase = base;
             updateData.trackingSuffix = suffix;
         }

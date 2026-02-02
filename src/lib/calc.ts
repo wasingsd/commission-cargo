@@ -100,46 +100,6 @@ export function formatNumber(num: number | null | undefined, digits: number = 2)
     }).format(num);
 }
 
-/**
- * Safely parse a string into a number
- * Returns 0 if the value cannot be parsed
- */
-export function safeParseNumber(value: string | number | null | undefined): number {
-    if (value === null || value === undefined || value === '') {
-        return 0;
-    }
-    if (typeof value === 'number') {
-        return isNaN(value) ? 0 : value;
-    }
-    const parsed = parseFloat(value.replace(/,/g, ''));
-    return isNaN(parsed) ? 0 : parsed;
-}
-
-/**
- * Parse tracking number into base and suffix
- * Example: "TRK-001-A" -> { base: "TRK-001", suffix: 1 }
- * Example: "TRK-001" -> { base: "TRK-001", suffix: null }
- */
-export function parseTrackingNumber(trackingNo: string): { base: string; suffix: number | null } {
-    if (!trackingNo) {
-        return { base: '', suffix: null };
-    }
-
-    // Per Master Logic 8.2 (5): Alphanumeric suffixes (e.g. -A, -B) are considered part of the Base.
-    // Only numeric suffixes (-1, -2) are separated.
-
-    // Check if tracking number ends with a numeric suffix (e.g., -1, -2)
-    const numSuffixMatch = trackingNo.match(/^(.+)-(\d+)$/);
-    if (numSuffixMatch) {
-        return {
-            base: numSuffixMatch[1],
-            suffix: parseInt(numSuffixMatch[2], 10)
-        };
-    }
-
-    // No suffix found
-    return { base: trackingNo, suffix: null };
-}
 
 interface ShipmentInput {
     cbm?: number | null;

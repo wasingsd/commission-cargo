@@ -88,14 +88,16 @@ export function RateCardList() {
 
         try {
             const res = await fetch(`/api/rate-cards/${id}`, { method: 'DELETE' });
-            if (res.ok) {
+            const data = await res.json();
+
+            if (res.ok && data.success) {
                 fetchRateCards();
             } else {
-                alert('ไม่สามารถลบเรทได้');
+                alert(data.error || 'ไม่สามารถลบเรทได้');
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to delete rate card:', error);
-            alert('เกิดข้อผิดพลาดในการลบ');
+            alert(`เกิดข้อผิดพลาดในการลบ: ${error.message}`);
         }
     };
 
@@ -156,9 +158,13 @@ export function RateCardList() {
                                             {card.status === 'ACTIVE' ? 'ใช้งานอยู่' : card.status}
                                         </span>
                                         <button
-                                            onClick={(e) => handleDelete(e, card.id, card.name)}
-                                            className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                                            title="ลบเรทราคา"
+                                            onClick={(e) => card.status !== 'ACTIVE' && handleDelete(e, card.id, card.name)}
+                                            className={`p-1.5 rounded-lg transition-colors ${card.status === 'ACTIVE'
+                                                    ? 'text-slate-100 cursor-not-allowed'
+                                                    : 'text-slate-300 hover:text-red-500 hover:bg-red-50'
+                                                }`}
+                                            title={card.status === 'ACTIVE' ? 'ไม่สามารถลบเรทที่ใช้งานอยู่ได้' : 'ลบเรทราคา'}
+                                            disabled={card.status === 'ACTIVE'}
                                         >
                                             <Trash2 className="w-4 h-4" />
                                         </button>

@@ -82,7 +82,12 @@ export async function PATCH(
         if (name) updateData.name = name;
         if (effectiveFrom) updateData.effectiveFrom = new Date(effectiveFrom);
         if (effectiveTo !== undefined) updateData.effectiveTo = effectiveTo ? new Date(effectiveTo) : null;
-        if (status) updateData.status = status;
+
+        if (status === 'ACTIVE') {
+            await firestore.rateCards.activate(id);
+        } else if (status) {
+            updateData.status = status;
+        }
 
         if (Object.keys(updateData).length > 0) {
             await firestore.rateCards.update(id, updateData);
@@ -134,23 +139,34 @@ export async function DELETE(
     const session = await getServerSession(authOptions);
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+    const user = session.user as any;
+
     try {
         const { id } = await params;
 
         // Get existing card for audit
         const existing = await firestore.rateCards.findById(id);
         if (!existing) {
-            return NextResponse.json({ error: 'Rate card not found' }, { status: 404 });
+            return NextResponse.json({ success: false, error: 'ไม่พบเรทราคาทุนที่ต้องการลบ' }, { status: 404 });
+        }
+
+        // Prevent deleting active rate card
+        if (existing.status === 'ACTIVE') {
+            return NextResponse.json({
+                success: false,
+                error: 'ไม่สามารถลบเรทที่กำลังใช้งานอยู่ได้ กรุณาเปิดใช้งานเรทอื่นก่อนเพื่อแทนที่เรทนี้'
+            }, { status: 400 });
         }
 
         await firestore.rateCards.delete(id);
 
         // Audit Log
         await firestore.auditLogs.create({
-            actorUserId: session.user.id,
+            actorUserId: user.id,
             entityType: 'RATE_CARD',
             entityId: id,
             action: 'DELETE',
+            message: `Deleted rate card: ${existing.name}`,
             beforeJson: existing as unknown as Record<string, unknown>
         });
 
@@ -158,7 +174,7 @@ export async function DELETE(
     } catch (error: any) {
         console.error('Error deleting rate card:', error);
         return NextResponse.json(
-            { success: false, error: 'Failed to delete rate card' },
+            { success: false, error: error.message || 'Failed to delete rate card' },
             { status: 500 }
         );
     }

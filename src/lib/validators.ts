@@ -36,3 +36,10 @@ export const CreateShipmentSchema = z.object({
 });
 
 export const UpdateShipmentSchema = CreateShipmentSchema.partial();
+
+export const CreateUserSchema = z.object({
+    email: z.string().email("กรุณากรอกอีเมลที่ถูกต้อง"),
+    name: z.string().min(1, "กรุณากรอกชื่อ"),
+    role: z.enum(['ADMIN', 'MANAGER', 'STAFF', 'SALE']),
+    password: z.string().min(6, "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร").optional().or(z.literal('')),
+});

@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { formatNumber, computeCost, parseTrackingNumber, computeCommission } from '@/lib/calc';
+import { formatNumber, computeCost, computeCommission } from '@/lib/calc';
+import { parseTracking } from '@/lib/tracking';
 import { ProductType, Transport } from '@/lib/enums';
 import { Calculator, Truck, Ship, AlertTriangle, Package, X, ChevronDown, ChevronUp, Sparkles, Check } from 'lucide-react';
 
@@ -46,6 +47,8 @@ export function ShipmentForm({ onClose, onSuccess, initialData }: ShipmentFormPr
         costManual: initialData?.costManual?.toString() || '',
         note: initialData?.note || ''
     });
+
+    const [autoNext, setAutoNext] = useState(false);
 
     // Fetch Rates on Mount
     useEffect(() => {
@@ -144,7 +147,7 @@ export function ShipmentForm({ onClose, onSuccess, initialData }: ShipmentFormPr
     };
 
     const preview = getPreview();
-    const trackingInfo = parseTrackingNumber(formData.trackingNo);
+    const trackingInfo = parseTracking(formData.trackingNo);
 
     const [error, setError] = useState<string | null>(null);
 
@@ -175,7 +178,20 @@ export function ShipmentForm({ onClose, onSuccess, initialData }: ShipmentFormPr
                 throw new Error(err.error || 'ล้มเหลวในการบันทึกรายการ');
             }
 
-            onSuccess();
+            if (autoNext) {
+                // Keep customer and other general settings, just clear tracking and prices
+                setFormData(prev => ({
+                    ...prev,
+                    trackingNo: '',
+                    weightKg: '',
+                    cbm: '',
+                    sellBase: '',
+                    costManual: '',
+                }));
+                // Focus the tracking input is handled by React if we give it a ref or use autofocus on re-render if it was empty
+            } else {
+                onSuccess();
+            }
         } catch (error: any) {
             setError(error.message);
         } finally {
@@ -476,31 +492,48 @@ export function ShipmentForm({ onClose, onSuccess, initialData }: ShipmentFormPr
                 </form>
 
                 {/* Footer */}
-                <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex gap-3">
-                    <button
-                        onClick={onClose}
-                        className="flex-1 py-3 text-slate-500 hover:bg-slate-200 rounded-xl text-sm font-semibold transition"
-                        disabled={loading}
-                    >
-                        ยกเลิก
-                    </button>
-                    <button
-                        onClick={handleSubmit}
-                        disabled={loading}
-                        className="flex-[2] py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800 rounded-xl text-sm font-bold transition shadow-lg shadow-blue-500/30 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
-                    >
-                        {loading ? (
-                            <>
-                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                กำลังบันทึก...
-                            </>
-                        ) : (
-                            <>
-                                <Check className="w-4 h-4" />
-                                บันทึกรายการ
-                            </>
-                        )}
-                    </button>
+                <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex flex-col gap-4">
+                    <div className="flex items-center gap-2 px-1">
+                        <label className="flex items-center gap-2 cursor-pointer group">
+                            <input
+                                type="checkbox"
+                                checked={autoNext}
+                                onChange={(e) => setAutoNext(e.target.checked)}
+                                className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 transition cursor-pointer"
+                            />
+                            <span className="text-xs font-semibold text-slate-600 group-hover:text-slate-900 transition flex items-center gap-1.5">
+                                <Sparkles className="w-3.5 h-3.5 text-blue-500" />
+                                โหมดสแกนต่อเนี่อง (Auto-Next)
+                            </span>
+                        </label>
+                    </div>
+
+                    <div className="flex gap-3">
+                        <button
+                            onClick={onClose}
+                            className="flex-1 py-3 text-slate-500 hover:bg-slate-200 rounded-xl text-sm font-semibold transition"
+                            disabled={loading}
+                        >
+                            ยกเลิก
+                        </button>
+                        <button
+                            onClick={handleSubmit}
+                            disabled={loading}
+                            className="flex-[2] py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800 rounded-xl text-sm font-bold transition shadow-lg shadow-blue-500/30 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                            {loading ? (
+                                <>
+                                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    กำลังบันทึก...
+                                </>
+                            ) : (
+                                <>
+                                    <Check className="w-4 h-4" />
+                                    บันทึกรายการ
+                                </>
+                            )}
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
