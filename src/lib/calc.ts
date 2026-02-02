@@ -24,6 +24,17 @@ function round2(num: number): number {
     return Math.round((num + Number.EPSILON) * 100) / 100;
 }
 
+/**
+ * Safely parse any value to a number. 
+ * Removes commas and handles null/undefined/empty string.
+ */
+export function safeParseNumber(val: any): number {
+    if (val === null || val === undefined || val === '') return 0;
+    if (typeof val === 'number') return val;
+    const n = parseFloat(String(val).replace(/,/g, ''));
+    return isNaN(n) ? 0 : n;
+}
+
 export function computeCost(inputs: CalcInputs): CostResult {
     const { weightKg = 0, cbm = 0, rateCbm = 0, rateKg = 0 } = inputs;
 

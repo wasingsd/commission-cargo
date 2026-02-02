@@ -11,8 +11,9 @@ import { safeParseNumber } from './calc';
 const PRODUCT_TYPE_MAP: Record<string, ProductType> = {
     'ทั่วไป': 'GENERAL',
     'general': 'GENERAL',
-    'มอก': 'TIS',
-    'tis': 'TIS',
+    'มอก': 'TISI',
+    'tis': 'TISI',
+    'tisi': 'TISI',
     'อย': 'FDA',
     'fda': 'FDA',
     'พิเศษ': 'SPECIAL',

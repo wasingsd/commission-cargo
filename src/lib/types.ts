@@ -7,7 +7,7 @@
 
 export type UserRole = 'ADMIN' | 'MANAGER' | 'STAFF' | 'SALE';
 export type RateCardStatus = 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
-export type ProductType = 'GENERAL' | 'TIS' | 'FDA' | 'SPECIAL';
+export type ProductType = 'GENERAL' | 'TISI' | 'FDA' | 'SPECIAL';
 export type TransportType = 'TRUCK' | 'SHIP';
 export type UnitType = 'CBM' | 'KG';
 export type CostMode = 'AUTO' | 'MANUAL';
@@ -21,7 +21,7 @@ export type EntityType = 'RATE_CARD' | 'RATE_ROW' | 'SHIPMENT' | 'CUSTOMER' | 'S
 
 export const PRODUCT_TYPE_LABELS: Record<ProductType, string> = {
     GENERAL: 'ทั่วไป',
-    TIS: 'มอก',
+    TISI: 'มอก',
     FDA: 'อย',
     SPECIAL: 'พิเศษ',
 };
