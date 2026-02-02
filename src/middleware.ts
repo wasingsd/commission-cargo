@@ -10,6 +10,7 @@ export default withAuth(
         pages: {
             signIn: "/login",
         },
+        secret: process.env.NEXTAUTH_SECRET || "dev_secret_key_12345",
     }
 );
 

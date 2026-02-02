@@ -47,7 +47,7 @@ export const authOptions: NextAuthOptions = {
             }
         }),
     ],
-    secret: process.env.NEXTAUTH_SECRET || "dev_secret_key_12345",
+    secret: process.env.NEXTAUTH_SECRET,
     callbacks: {
         async signIn({ account }) {
             if (account?.provider === "credentials") {
