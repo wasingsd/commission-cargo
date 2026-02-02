@@ -88,6 +88,18 @@ export async function PUT(
 
         const salesperson = await firestore.salespersons.update(id, updateData);
 
+        // Audit Log
+        const { logActivity } = await import('@/lib/audit');
+        const { AuditAction } = await import('@/lib/enums');
+        await logActivity({
+            action: AuditAction.UPDATE,
+            entityType: 'SALESPERSON',
+            entityId: id,
+            message: `แก้ไขข้อมูลพนักงานขาย: ${salesperson?.name}`,
+            beforeJson: body, // We don't have current easily here but we can pass body as intent
+            afterJson: salesperson
+        });
+
         return NextResponse.json({ success: true, data: salesperson });
     } catch (error: any) {
         console.error('Error updating salesperson:', error);
@@ -131,6 +143,16 @@ export async function DELETE(
         }
 
         await firestore.salespersons.delete(id);
+
+        // Audit Log
+        const { logActivity } = await import('@/lib/audit');
+        const { AuditAction } = await import('@/lib/enums');
+        await logActivity({
+            action: AuditAction.DELETE,
+            entityType: 'SALESPERSON',
+            entityId: id,
+            message: `ลบข้อมูลเซลล์: ${id}`, // Name might not be available if deleted
+        });
 
         return NextResponse.json({ success: true, message: 'ลบข้อมูลเซลล์แล้ว' });
     } catch (error: any) {

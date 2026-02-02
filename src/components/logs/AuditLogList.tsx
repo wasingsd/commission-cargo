@@ -20,8 +20,11 @@ interface AuditLog {
     action: string;
     entityType: string;
     entityId: string;
+    message?: string;
     details: any;
-    user: {
+    actorUser: {
+        id: string;
+        name?: string;
         email: string;
     } | null;
     createdAt: string;
@@ -35,7 +38,7 @@ export function AuditLogList() {
     useEffect(() => {
         const fetchLogs = async () => {
             try {
-                const res = await fetch('/api/logs');
+                const res = await fetch('/api/audit-logs');
                 const data = await res.json();
                 if (data.success) {
                     setLogs(data.data);
@@ -52,7 +55,8 @@ export function AuditLogList() {
     const filteredLogs = logs.filter(log =>
         log.action.toLowerCase().includes(searchTerm.toLowerCase()) ||
         log.entityType.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        log.user?.email.toLowerCase().includes(searchTerm.toLowerCase())
+        log.actorUser?.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        log.message?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     const getActionColor = (action: string) => {
@@ -145,7 +149,7 @@ export function AuditLogList() {
                                             <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-accent-50 transition-colors">
                                                 <User className="w-3.5 h-3.5" />
                                             </div>
-                                            <span className="truncate">{log.user?.email || 'System'}</span>
+                                            <span className="truncate">{log.actorUser?.email || 'System'}</span>
                                         </div>
                                     </div>
 
@@ -163,9 +167,12 @@ export function AuditLogList() {
 
                                     {/* Details */}
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-xs text-slate-500 font-medium leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100/50 group-hover:bg-white group-hover:border-slate-200 transition-all">
-                                            {log.action === 'UPDATE' ? 'แก้ไขข้อมูลในรายการ' : 'ดำเนินการรายการใหม่'} เลขที่: <span className="text-slate-900 font-bold">{log.entityId}</span>
-                                        </p>
+                                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100/50 group-hover:bg-white group-hover:border-slate-200 transition-all">
+                                            <p className="text-sm font-bold text-slate-900 mb-1">{log.message}</p>
+                                            <p className="text-[11px] text-slate-400 font-medium">
+                                                ID: {log.entityId}
+                                            </p>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

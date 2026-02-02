@@ -132,6 +132,75 @@ export async function GET(request: NextRequest) {
             });
         }
 
+        if (groupBy === 'dashboard') {
+            // Group by month for trend
+            const monthMap = new Map<string, any>();
+            // Group by salesperson for share
+            const salesMap = new Map<string, any>();
+
+            let totalSellBase = 0;
+            let totalCostFinal = 0;
+            let totalCommission = 0;
+
+            shipmentsWithRelations.forEach((s) => {
+                const sell = Number(s.sellBase || 0);
+                const cost = Number(s.costFinal || 0);
+                const comm = Number(s.commissionValue || 0);
+
+                totalSellBase += sell;
+                totalCostFinal += cost;
+                totalCommission += comm;
+
+                // Monthly trend
+                if (s.dateIn) {
+                    const monthKey = s.dateIn instanceof Date
+                        ? s.dateIn.toISOString().substring(0, 7)
+                        : String(s.dateIn).substring(0, 7);
+                    const mExisting = monthMap.get(monthKey) || {
+                        name: monthKey,
+                        revenue: 0,
+                        cost: 0,
+                        profit: 0,
+                        commission: 0
+                    };
+                    mExisting.revenue += sell;
+                    mExisting.cost += cost;
+                    mExisting.profit += (sell - cost);
+                    mExisting.commission += comm;
+                    monthMap.set(monthKey, mExisting);
+                }
+
+                // Salesperson share
+                if (s.salespersonId && s.salesperson) {
+                    const sExisting = salesMap.get(s.salespersonId) || {
+                        name: s.salesperson.name,
+                        value: 0,
+                        revenue: 0,
+                        commission: 0
+                    };
+                    sExisting.revenue += sell;
+                    sExisting.value += sell; // for pie chart
+                    sExisting.commission += comm;
+                    salesMap.set(s.salespersonId, sExisting);
+                }
+            });
+
+            return NextResponse.json({
+                success: true,
+                data: {
+                    metrics: {
+                        totalRevenue: totalSellBase,
+                        totalCost: totalCostFinal,
+                        totalProfit: totalSellBase - totalCostFinal,
+                        totalCommission: totalCommission,
+                        shipmentCount: shipmentsWithRelations.length,
+                    },
+                    monthlyTrend: Array.from(monthMap.values()).sort((a, b) => a.name.localeCompare(b.name)),
+                    salesShare: Array.from(salesMap.values()).sort((a, b) => b.revenue - a.revenue),
+                }
+            });
+        }
+
         if (groupBy === 'monthly') {
             // Group by month
             const monthMap = new Map<string, {

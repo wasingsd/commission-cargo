@@ -108,13 +108,14 @@ export async function PATCH(
         }
 
         // Audit Log
-        await firestore.auditLogs.create({
-            actorUserId: userId,
+        const { logActivity } = await import('@/lib/audit');
+        const { AuditAction } = await import('@/lib/enums');
+        await logActivity({
+            action: AuditAction.UPDATE,
             entityType: 'RATE_CARD',
             entityId: id,
-            action: 'UPDATE',
             message: `Updated rate card: ${name || current.name}`,
-            beforeJson: current as unknown as Record<string, unknown>
+            beforeJson: current
         });
 
         const updated = await firestore.rateCards.findById(id, true);
@@ -161,13 +162,14 @@ export async function DELETE(
         await firestore.rateCards.delete(id);
 
         // Audit Log
-        await firestore.auditLogs.create({
-            actorUserId: user.id,
+        const { logActivity } = await import('@/lib/audit');
+        const { AuditAction } = await import('@/lib/enums');
+        await logActivity({
+            action: AuditAction.DELETE,
             entityType: 'RATE_CARD',
             entityId: id,
-            action: 'DELETE',
             message: `Deleted rate card: ${existing.name}`,
-            beforeJson: existing as unknown as Record<string, unknown>
+            beforeJson: existing
         });
 
         return NextResponse.json({ success: true });

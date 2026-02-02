@@ -81,6 +81,17 @@ export async function POST(req: Request) {
             active: true
         });
 
+        // Audit Log
+        const { logActivity } = await import('@/lib/audit');
+        const { AuditAction } = await import('@/lib/enums');
+        await logActivity({
+            action: AuditAction.CREATE,
+            entityType: 'SALESPERSON',
+            entityId: salesperson.id,
+            message: `เพิ่มพนักงานขายใหม่: ${salesperson.name} (${salesperson.code})`,
+            afterJson: salesperson
+        });
+
         return NextResponse.json({ success: true, data: salesperson });
     } catch (error: any) {
         console.error('Error creating salesperson:', error);

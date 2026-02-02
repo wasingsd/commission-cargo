@@ -52,12 +52,14 @@ export async function POST(req: Request) {
         });
 
         // Audit Log
-        await firestore.auditLogs.create({
-            actorUserId: session.user.id,
+        const { logActivity } = await import('@/lib/audit');
+        const { AuditAction } = await import('@/lib/enums');
+        await logActivity({
+            action: AuditAction.CREATE,
             entityType: 'CUSTOMER',
             entityId: customer.id,
-            action: 'CREATE',
-            message: `Created customer: ${code} - ${name || ''}`
+            message: `สร้างลูกค้าใหม่: ${code} - ${name || ''}`,
+            afterJson: customer
         });
 
         return NextResponse.json({ success: true, data: customer });

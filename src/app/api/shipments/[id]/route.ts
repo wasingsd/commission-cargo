@@ -146,14 +146,14 @@ export async function PATCH(
         const updatedWithRelations = await firestore.shipments.findByIdWithRelations(id);
 
         // Create audit log
-        await firestore.auditLogs.create({
-            actorUserId: userId,
+        const { logActivity } = await import('@/lib/audit');
+        const { AuditAction } = await import('@/lib/enums');
+        await logActivity({
+            action: AuditAction.UPDATE,
             entityType: 'SHIPMENT',
             entityId: id,
-            action: 'UPDATE',
-            beforeJson: current as unknown as Record<string, unknown>,
-            afterJson: updated as unknown as Record<string, unknown>,
-
+            beforeJson: current,
+            afterJson: updated,
             message: `แก้ไขรายการ Tracking: ${updated?.trackingNo}`,
         });
 
@@ -192,13 +192,13 @@ export async function DELETE(
         await firestore.shipments.delete(id);
 
         // Create audit log
-        await firestore.auditLogs.create({
-            actorUserId: userId,
+        const { logActivity } = await import('@/lib/audit');
+        const { AuditAction } = await import('@/lib/enums');
+        await logActivity({
+            action: AuditAction.DELETE,
             entityType: 'SHIPMENT',
             entityId: id,
-            action: 'DELETE',
-            beforeJson: shipment as unknown as Record<string, unknown>,
-
+            beforeJson: shipment,
             message: `ลบรายการ Tracking: ${shipment.trackingNo}`,
         });
 

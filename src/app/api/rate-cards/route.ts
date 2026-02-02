@@ -76,12 +76,13 @@ export async function POST(req: Request) {
         );
 
         // Audit Log
-        await firestore.auditLogs.create({
-            actorUserId: session.user.id,
+        const { logActivity } = await import('@/lib/audit');
+        const { AuditAction } = await import('@/lib/enums');
+        await logActivity({
+            action: AuditAction.CREATE,
             entityType: 'RATE_CARD',
             entityId: card.id,
-            action: 'CREATE',
-            afterJson: card as unknown as Record<string, unknown>
+            afterJson: card
         });
 
         return NextResponse.json({ success: true, data: card });

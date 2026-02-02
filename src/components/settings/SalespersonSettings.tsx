@@ -226,14 +226,14 @@ export function SalespersonSettings() {
     );
 
     return (
-        <div className="space-y-8 animate-premium">
+        <div className="space-y-8 animate-in fade-in duration-700">
             {/* Header */}
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
                 <div>
-                    <h1 className="text-3xl font-bold text-slate-900 tracking-tight">
-                        ตั้งค่า <span className="text-slate-400">เซลล์</span>
+                    <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
+                        <span className="text-accent-500">ตั้งค่า</span> เซลล์
                     </h1>
-                    <p className="text-sm text-slate-400 mt-1">จัดการข้อมูลพนักงานขายและมอบหมายลูกค้า</p>
+                    <p className="text-sm text-slate-500 mt-1 font-medium">จัดการข้อมูลพนักงานขายและมอบหมายลูกค้า</p>
                 </div>
 
                 <button
@@ -242,70 +242,76 @@ export function SalespersonSettings() {
                         setError('');
                         setShowAddModal(true);
                     }}
-                    className="flex items-center gap-2 px-6 py-3.5 bg-slate-900 text-white rounded-xl text-sm font-semibold hover:bg-slate-800 transition-all shadow-lg active:scale-95"
+                    className="flex items-center gap-2 px-7 py-3.5 bg-[#0f172a] text-white rounded-2xl text-sm font-bold hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 active:scale-95 group"
                 >
-                    <Plus className="w-4 h-4" />
+                    <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
                     เพิ่มเซลล์ใหม่
                 </button>
             </div>
 
             {/* Search */}
-            <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
-                <div className="relative">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    <input
-                        type="text"
-                        placeholder="ค้นหาด้วยชื่อหรือรหัสเซลล์..."
-                        className="w-full bg-slate-50/50 border border-slate-100 rounded-xl py-3 pl-11 pr-4 text-sm focus:ring-0 focus:border-accent-500 transition-all outline-none font-medium"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                </div>
+            <div className="relative group">
+                <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-accent-500 transition-colors" />
+                <input
+                    type="text"
+                    placeholder="ค้นหาด้วยชื่อหรือรหัสเซลล์..."
+                    className="w-full bg-white border border-slate-100 rounded-3xl py-5 pl-14 pr-6 text-sm focus:ring-4 focus:ring-accent-500/5 focus:border-accent-500 transition-all outline-none font-semibold shadow-sm placeholder:text-slate-300"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                />
             </div>
 
             {/* Salesperson List */}
-            <div className="grid gap-4">
+            <div className="grid gap-5">
                 {loading ? (
-                    <div className="bg-white rounded-2xl p-12 text-center border border-slate-100">
-                        <div className="w-8 h-8 border-4 border-slate-100 border-t-accent-500 rounded-full animate-spin mx-auto" />
-                        <p className="text-sm text-slate-400 mt-4">กำลังโหลดข้อมูล...</p>
+                    <div className="bg-white rounded-3xl p-20 text-center border border-slate-100 shadow-sm">
+                        <div className="w-10 h-10 border-4 border-slate-100 border-t-accent-500 rounded-full animate-spin mx-auto" />
+                        <p className="text-sm text-slate-400 mt-6 font-medium">กำลังเตรียมข้อมูลระดับพรีเมียม...</p>
                     </div>
                 ) : filteredSalespersons.length === 0 ? (
-                    <div className="bg-white rounded-2xl p-12 text-center border border-slate-100">
-                        <Users className="w-12 h-12 text-slate-200 mx-auto mb-4" />
-                        <p className="text-slate-500 font-medium">ไม่พบข้อมูลเซลล์</p>
-                        <p className="text-sm text-slate-400 mt-1">กดปุ่ม "เพิ่มเซลล์ใหม่" เพื่อเริ่มต้น</p>
+                    <div className="bg-white rounded-3xl p-20 text-center border border-slate-100 shadow-sm">
+                        <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <Users className="w-10 h-10 text-slate-200" />
+                        </div>
+                        <p className="text-slate-500 font-bold text-lg">ไม่พบข้อมูลเซลล์</p>
+                        <p className="text-sm text-slate-400 mt-2 font-medium">ลองเปลี่ยนคำค้นหา หรือกดปุ่ม "เพิ่มเซลล์ใหม่"</p>
                     </div>
                 ) : (
                     filteredSalespersons.map((sp) => (
                         <div
                             key={sp.id}
-                            className={`bg-white rounded-2xl p-6 border ${sp.active ? 'border-slate-100' : 'border-red-100 bg-red-50/30'} shadow-sm hover:shadow-md transition-all group`}
+                            className={`bg-white rounded-[2rem] p-8 border ${sp.active ? 'border-slate-100' : 'border-red-100 bg-red-50/10'} shadow-sm hover:shadow-xl hover:shadow-slate-200/50 transition-all duration-300 group relative overflow-hidden`}
                         >
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-4">
-                                    <div className={`w-12 h-12 rounded-xl ${sp.active ? 'bg-gradient-to-br from-accent-500/10 to-accent-500/20' : 'bg-slate-200'} flex items-center justify-center`}>
-                                        <span className={`text-lg font-bold ${sp.active ? 'text-accent-600' : 'text-slate-400'}`}>
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 relative z-10">
+                                <div className="flex items-center gap-6">
+                                    {/* Avatar/Code */}
+                                    <div className={`w-16 h-16 rounded-2xl ${sp.active ? 'bg-orange-50' : 'bg-slate-100'} flex items-center justify-center shrink-0 shadow-inner group-hover:scale-110 transition-transform duration-500`}>
+                                        <span className={`text-sm font-black tracking-tighter ${sp.active ? 'text-orange-500' : 'text-slate-400'}`}>
                                             {sp.code}
                                         </span>
                                     </div>
-                                    <div>
-                                        <h3 className="font-bold text-slate-900 flex items-center gap-2">
+
+                                    <div className="space-y-1.5">
+                                        <h3 className="text-xl font-black text-slate-900 flex items-center gap-3">
                                             {sp.name}
                                             {!sp.active && (
-                                                <span className="text-[10px] px-2 py-0.5 bg-red-100 text-red-600 rounded-full font-semibold">ปิดใช้งาน</span>
+                                                <span className="text-[10px] px-2.5 py-1 bg-red-100 text-red-600 rounded-lg uppercase tracking-widest font-black">Inactive</span>
                                             )}
                                         </h3>
-                                        <div className="flex items-center gap-4 mt-1 text-sm text-slate-400">
+                                        <div className="flex flex-wrap items-center gap-4 text-sm font-semibold text-slate-400">
                                             {sp.phone && (
-                                                <span className="flex items-center gap-1">
-                                                    <Phone className="w-3 h-3" />
+                                                <span className="flex items-center gap-2 group/info hover:text-slate-600 transition-colors">
+                                                    <div className="p-1.5 bg-slate-50 rounded-lg group-hover/info:bg-accent-50 group-hover/info:text-accent-600 transition-colors">
+                                                        <Phone className="w-3 h-3" />
+                                                    </div>
                                                     {sp.phone}
                                                 </span>
                                             )}
                                             {sp.email && (
-                                                <span className="flex items-center gap-1">
-                                                    <Mail className="w-3 h-3" />
+                                                <span className="flex items-center gap-2 group/info hover:text-slate-600 transition-colors">
+                                                    <div className="p-1.5 bg-slate-50 rounded-lg group-hover/info:bg-blue-50 group-hover/info:text-blue-600 transition-colors">
+                                                        <Mail className="w-3 h-3" />
+                                                    </div>
                                                     {sp.email}
                                                 </span>
                                             )}
@@ -313,41 +319,45 @@ export function SalespersonSettings() {
                                     </div>
                                 </div>
 
-                                <div className="flex items-center gap-6">
+                                <div className="flex items-center justify-between md:justify-end gap-10">
                                     {/* Stats */}
-                                    <div className="flex items-center gap-4 pr-4 border-r border-slate-100">
-                                        <div className="text-center">
-                                            <p className="text-xl font-bold text-slate-900">{sp._count.customers}</p>
-                                            <p className="text-[11px] text-slate-400 font-medium">ลูกค้า</p>
+                                    <div className="flex items-center gap-8">
+                                        <div className="text-center group/stat">
+                                            <p className="text-2xl font-black text-slate-900 group-hover/stat:text-accent-600 transition-colors leading-none">
+                                                {sp._count.customers}
+                                            </p>
+                                            <p className="text-[11px] text-slate-400 font-bold uppercase tracking-wider mt-1">ลูกค้า</p>
                                         </div>
-                                        <div className="text-center">
-                                            <p className="text-xl font-bold text-slate-900">{sp._count.shipments}</p>
-                                            <p className="text-[11px] text-slate-400 font-medium">รายการ</p>
+                                        <div className="text-center group/stat">
+                                            <p className="text-2xl font-black text-slate-900 group-hover/stat:text-accent-600 transition-colors leading-none">
+                                                {sp._count.shipments}
+                                            </p>
+                                            <p className="text-[11px] text-slate-400 font-bold uppercase tracking-wider mt-1">รายการ</p>
                                         </div>
                                     </div>
 
                                     {/* Actions */}
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-3">
                                         <button
                                             onClick={() => openCustomerModal(sp)}
-                                            className="p-2.5 bg-slate-50 rounded-xl text-slate-400 hover:text-accent-500 hover:bg-accent-50 transition-all"
+                                            className="p-3.5 bg-slate-50 rounded-2xl text-slate-400 hover:text-accent-600 hover:bg-accent-50 hover:shadow-lg hover:shadow-accent-500/10 transition-all duration-300"
                                             title="จัดการลูกค้า"
                                         >
-                                            <UserPlus className="w-4 h-4" />
+                                            <UserPlus className="w-5 h-5" />
                                         </button>
                                         <button
                                             onClick={() => openEditModal(sp)}
-                                            className="p-2.5 bg-slate-50 rounded-xl text-slate-400 hover:text-blue-500 hover:bg-blue-50 transition-all"
+                                            className="p-3.5 bg-slate-50 rounded-2xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 hover:shadow-lg hover:shadow-blue-500/10 transition-all duration-300"
                                             title="แก้ไข"
                                         >
-                                            <Edit2 className="w-4 h-4" />
+                                            <Edit2 className="w-5 h-5" />
                                         </button>
                                         <button
                                             onClick={() => handleDeleteSalesperson(sp.id)}
-                                            className="p-2.5 bg-slate-50 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all"
+                                            className="p-3.5 bg-slate-50 rounded-2xl text-slate-400 hover:text-red-600 hover:bg-red-50 hover:shadow-lg hover:shadow-red-500/10 transition-all duration-300"
                                             title="ลบ"
                                         >
-                                            <Trash2 className="w-4 h-4" />
+                                            <Trash2 className="w-5 h-5" />
                                         </button>
                                     </div>
                                 </div>
@@ -357,183 +367,112 @@ export function SalespersonSettings() {
                 )}
             </div>
 
-            {/* Add Modal */}
-            {showAddModal && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl animate-premium">
-                        <div className="p-6 border-b border-slate-100">
+            {/* Add/Edit Modal Container */}
+            {(showAddModal || showEditModal) && (
+                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[100] flex items-center justify-center p-4 animate-in fade-in zoom-in duration-300">
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-lg shadow-2xl relative overflow-hidden">
+                        <div className="p-8 border-b border-slate-50">
                             <div className="flex items-center justify-between">
-                                <h2 className="text-xl font-bold text-slate-900">เพิ่มเซลล์ใหม่</h2>
+                                <div className="space-y-1">
+                                    <h2 className="text-2xl font-black text-slate-900">
+                                        {showAddModal ? "เพิ่มเซลล์ใหม่" : "แก้ไขข้อมูลเซลล์"}
+                                    </h2>
+                                    <p className="text-sm text-slate-400 font-medium">กรุณากรอกข้อมูลให้ครบถ้วนเพื่อผลลัพธ์ที่สมบูรณ์</p>
+                                </div>
                                 <button
-                                    onClick={() => setShowAddModal(false)}
-                                    className="p-2 hover:bg-slate-100 rounded-xl transition"
+                                    onClick={() => {
+                                        setShowAddModal(false);
+                                        setShowEditModal(false);
+                                    }}
+                                    className="p-3 bg-slate-50 hover:bg-slate-100 rounded-2xl transition-colors duration-300"
                                 >
-                                    <X className="w-5 h-5 text-slate-400" />
+                                    <X className="w-6 h-6 text-slate-400" />
                                 </button>
                             </div>
                         </div>
 
-                        <form onSubmit={handleAddSalesperson} className="p-6 space-y-4">
+                        <form onSubmit={showAddModal ? handleAddSalesperson : handleUpdateSalesperson} className="p-8 space-y-6">
                             {error && (
-                                <div className="bg-red-50 text-red-600 px-4 py-3 rounded-xl text-sm flex items-center gap-2">
-                                    <AlertCircle className="w-4 h-4" />
+                                <div className="bg-red-50 border border-red-100 text-red-600 p-4 rounded-2xl text-sm font-bold flex items-center gap-3 animate-shake">
+                                    <div className="p-2 bg-white rounded-xl shadow-sm">
+                                        <AlertCircle className="w-5 h-5" />
+                                    </div>
                                     {error}
                                 </div>
                             )}
 
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                                    รหัสเซลล์ <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                    type="text"
-                                    className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500"
-                                    placeholder="ตย. SALE-01"
-                                    value={formData.code}
-                                    onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                                    required
-                                />
+                            <div className="grid grid-cols-2 gap-5">
+                                <div className="col-span-2 sm:col-span-1 space-y-2">
+                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest px-1">
+                                        รหัสเซลล์ <span className="text-accent-500">*</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl text-sm font-bold focus:ring-4 focus:ring-accent-500/10 focus:bg-white transition-all outline-none shadow-inner"
+                                        placeholder="SALE-01"
+                                        value={formData.code}
+                                        onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                                        required
+                                    />
+                                </div>
+
+                                <div className="col-span-2 sm:col-span-2 space-y-2">
+                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest px-1">
+                                        ชื่อ-นามสกุล <span className="text-accent-500">*</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl text-sm font-bold focus:ring-4 focus:ring-accent-500/10 focus:bg-white transition-all outline-none shadow-inner"
+                                        placeholder="ระบุชื่อจริงนามสกุล"
+                                        value={formData.name}
+                                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                        required
+                                    />
+                                </div>
+
+                                <div className="col-span-2 sm:col-span-1 space-y-2">
+                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest px-1">
+                                        เบอร์โทรศัพท์
+                                    </label>
+                                    <input
+                                        type="tel"
+                                        className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl text-sm font-bold focus:ring-4 focus:ring-accent-500/10 focus:bg-white transition-all outline-none shadow-inner"
+                                        placeholder="0xx-xxx-xxxx"
+                                        value={formData.phone}
+                                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                                    />
+                                </div>
+
+                                <div className="col-span-2 sm:col-span-1 space-y-2">
+                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest px-1">
+                                        อีเมล
+                                    </label>
+                                    <input
+                                        type="email"
+                                        className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl text-sm font-bold focus:ring-4 focus:ring-accent-500/10 focus:bg-white transition-all outline-none shadow-inner"
+                                        placeholder="example@mail.com"
+                                        value={formData.email}
+                                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                    />
+                                </div>
                             </div>
 
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                                    ชื่อ-นามสกุล <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                    type="text"
-                                    className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500"
-                                    placeholder="ชื่อพนักงานขาย"
-                                    value={formData.name}
-                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                    required
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-2">เบอร์โทรศัพท์</label>
-                                <input
-                                    type="tel"
-                                    className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500"
-                                    placeholder="0xx-xxx-xxxx"
-                                    value={formData.phone}
-                                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-2">อีเมล</label>
-                                <input
-                                    type="email"
-                                    className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500"
-                                    placeholder="example@email.com"
-                                    value={formData.email}
-                                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                />
-                            </div>
-
-                            <div className="flex gap-3 pt-4">
+                            <div className="flex gap-4 pt-4">
                                 <button
                                     type="button"
-                                    onClick={() => setShowAddModal(false)}
-                                    className="flex-1 py-3 border border-slate-200 rounded-xl text-slate-600 font-semibold hover:bg-slate-50 transition"
+                                    onClick={() => {
+                                        setShowAddModal(false);
+                                        setShowEditModal(false);
+                                    }}
+                                    className="flex-1 py-4 bg-slate-100 rounded-2xl text-slate-600 font-black hover:bg-slate-200 transition-all duration-300"
                                 >
                                     ยกเลิก
                                 </button>
                                 <button
                                     type="submit"
-                                    className="flex-1 py-3 bg-slate-900 text-white rounded-xl font-semibold hover:bg-slate-800 transition"
+                                    className="flex-[1.5] py-4 bg-[#0f172a] text-white rounded-2xl font-black hover:bg-slate-800 transition-all duration-300 shadow-xl shadow-slate-200"
                                 >
-                                    บันทึก
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {/* Edit Modal */}
-            {showEditModal && selectedSalesperson && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl animate-premium">
-                        <div className="p-6 border-b border-slate-100">
-                            <div className="flex items-center justify-between">
-                                <h2 className="text-xl font-bold text-slate-900">แก้ไขข้อมูลเซลล์</h2>
-                                <button
-                                    onClick={() => setShowEditModal(false)}
-                                    className="p-2 hover:bg-slate-100 rounded-xl transition"
-                                >
-                                    <X className="w-5 h-5 text-slate-400" />
-                                </button>
-                            </div>
-                        </div>
-
-                        <form onSubmit={handleUpdateSalesperson} className="p-6 space-y-4">
-                            {error && (
-                                <div className="bg-red-50 text-red-600 px-4 py-3 rounded-xl text-sm flex items-center gap-2">
-                                    <AlertCircle className="w-4 h-4" />
-                                    {error}
-                                </div>
-                            )}
-
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                                    รหัสเซลล์ <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                    type="text"
-                                    className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500"
-                                    value={formData.code}
-                                    onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                                    required
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                                    ชื่อ-นามสกุล <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                    type="text"
-                                    className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500"
-                                    value={formData.name}
-                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                    required
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-2">เบอร์โทรศัพท์</label>
-                                <input
-                                    type="tel"
-                                    className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500"
-                                    value={formData.phone}
-                                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-2">อีเมล</label>
-                                <input
-                                    type="email"
-                                    className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500"
-                                    value={formData.email}
-                                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                />
-                            </div>
-
-                            <div className="flex gap-3 pt-4">
-                                <button
-                                    type="button"
-                                    onClick={() => setShowEditModal(false)}
-                                    className="flex-1 py-3 border border-slate-200 rounded-xl text-slate-600 font-semibold hover:bg-slate-50 transition"
-                                >
-                                    ยกเลิก
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="flex-1 py-3 bg-slate-900 text-white rounded-xl font-semibold hover:bg-slate-800 transition"
-                                >
-                                    บันทึกการเปลี่ยนแปลง
+                                    {showAddModal ? "บันทึกข้อมูล" : "อัปเดตข้อมูล"}
                                 </button>
                             </div>
                         </form>
@@ -543,14 +482,14 @@ export function SalespersonSettings() {
 
             {/* Customer Assignment Modal */}
             {showCustomerModal && selectedSalesperson && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl animate-premium max-h-[80vh] flex flex-col">
-                        <div className="p-6 border-b border-slate-100">
+                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[100] flex items-center justify-center p-4 animate-in fade-in zoom-in duration-300">
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+                        <div className="p-8 border-b border-slate-50">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <h2 className="text-xl font-bold text-slate-900">จัดการลูกค้า</h2>
-                                    <p className="text-sm text-slate-400 mt-1">
-                                        เซลล์: {selectedSalesperson.name} ({selectedSalesperson.code})
+                                    <h2 className="text-2xl font-black text-slate-900">จัดการลูกค้า</h2>
+                                    <p className="text-sm text-slate-400 font-bold mt-1">
+                                        เซลล์: <span className="text-accent-600">{selectedSalesperson.name}</span>
                                     </p>
                                 </div>
                                 <button
@@ -559,84 +498,98 @@ export function SalespersonSettings() {
                                         setCustomerCode('');
                                         setError('');
                                     }}
-                                    className="p-2 hover:bg-slate-100 rounded-xl transition"
+                                    className="p-3 bg-slate-50 hover:bg-slate-100 rounded-2xl transition-colors duration-300"
                                 >
-                                    <X className="w-5 h-5 text-slate-400" />
+                                    <X className="w-6 h-6 text-slate-400" />
                                 </button>
                             </div>
                         </div>
 
-                        <div className="p-6 flex-1 overflow-auto">
-                            {error && (
-                                <div className="bg-red-50 text-red-600 px-4 py-3 rounded-xl text-sm flex items-center gap-2 mb-4">
-                                    <AlertCircle className="w-4 h-4" />
-                                    {error}
-                                </div>
-                            )}
-
+                        <div className="p-8 flex-1 overflow-auto space-y-8 scrollbar-hide">
                             {/* Add Customer Form */}
-                            <form onSubmit={handleAssignCustomer} className="flex gap-3 mb-6">
-                                <input
-                                    type="text"
-                                    className="flex-1 px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500"
-                                    placeholder="รหัสลูกค้า (ตย. PR-001)"
-                                    value={customerCode}
-                                    onChange={(e) => setCustomerCode(e.target.value)}
-                                />
-                                <button
-                                    type="submit"
-                                    className="px-6 py-3 bg-accent-500 text-white rounded-xl font-semibold hover:bg-accent-600 transition flex items-center gap-2"
-                                >
-                                    <Plus className="w-4 h-4" />
-                                    เพิ่ม
-                                </button>
-                            </form>
+                            <div className="space-y-3">
+                                <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest px-1">
+                                    เพิ่มลูกค้าในความดูแล
+                                </h3>
+                                <form onSubmit={handleAssignCustomer} className="flex gap-3">
+                                    <input
+                                        type="text"
+                                        className="flex-1 px-5 py-4 bg-slate-50 border-none rounded-2xl text-sm font-bold focus:ring-4 focus:ring-accent-500/10 focus:bg-white transition-all outline-none shadow-inner"
+                                        placeholder="รหัสลูกค้า (ตย. PR-001)"
+                                        value={customerCode}
+                                        onChange={(e) => setCustomerCode(e.target.value)}
+                                    />
+                                    <button
+                                        type="submit"
+                                        className="px-8 py-4 bg-accent-500 text-white rounded-2xl font-black hover:bg-accent-600 transition-all duration-300 shadow-lg shadow-accent-200 active:scale-95"
+                                    >
+                                        <Plus className="w-5 h-5" />
+                                    </button>
+                                </form>
+                                {error && (
+                                    <p className="text-xs text-red-500 font-bold pl-1 animate-pulse">{error}</p>
+                                )}
+                            </div>
 
                             {/* Customer List */}
-                            <div className="space-y-2">
-                                <h3 className="text-sm font-semibold text-slate-500 mb-3">
-                                    ลูกค้าในความดูแล ({selectedCustomers.length})
-                                </h3>
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between px-1">
+                                    <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">
+                                        รายชื่อปัจจุบัน
+                                    </h3>
+                                    <span className="px-3 py-1 bg-slate-100 rounded-full text-[10px] font-black text-slate-500">
+                                        {selectedCustomers.length} ราย
+                                    </span>
+                                </div>
 
                                 {selectedCustomers.length === 0 ? (
-                                    <div className="text-center py-8 text-slate-400">
-                                        <Package className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                                        <p className="text-sm">ยังไม่มีลูกค้าในความดูแล</p>
+                                    <div className="text-center py-12 bg-slate-50/50 rounded-[2rem] border-2 border-dashed border-slate-100">
+                                        <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-sm">
+                                            <Package className="w-8 h-8 text-slate-200" />
+                                        </div>
+                                        <p className="text-sm font-bold text-slate-400">ยังไม่มีลูกค้าในความดูแล</p>
                                     </div>
                                 ) : (
-                                    selectedCustomers.map((customer) => (
-                                        <div
-                                            key={customer.id}
-                                            className="flex items-center justify-between p-4 bg-slate-50 rounded-xl group hover:bg-slate-100 transition"
-                                        >
-                                            <div>
-                                                <p className="font-semibold text-slate-900">{customer.code}</p>
-                                                {customer.name && (
-                                                    <p className="text-sm text-slate-400">{customer.name}</p>
-                                                )}
-                                            </div>
-                                            <button
-                                                onClick={() => handleRemoveCustomer(customer.id)}
-                                                className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition opacity-0 group-hover:opacity-100"
+                                    <div className="grid gap-3">
+                                        {selectedCustomers.map((customer) => (
+                                            <div
+                                                key={customer.id}
+                                                className="flex items-center justify-between p-5 bg-white border border-slate-100 rounded-2xl group hover:border-accent-100 hover:shadow-lg hover:shadow-slate-100 transition-all duration-300"
                                             >
-                                                <X className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    ))
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center font-black text-xs text-slate-500 group-hover:bg-accent-50 group-hover:text-accent-600 transition-colors">
+                                                        CST
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-black text-slate-900 leading-none">{customer.code}</p>
+                                                        {customer.name && (
+                                                            <p className="text-[11px] text-slate-400 font-bold mt-1.5">{customer.name}</p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={() => handleRemoveCustomer(customer.id)}
+                                                    className="p-2.5 bg-slate-50 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all duration-300 opacity-0 group-hover:opacity-100"
+                                                >
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
                                 )}
                             </div>
                         </div>
 
-                        <div className="p-6 border-t border-slate-100">
+                        <div className="p-8 bg-slate-50/50">
                             <button
                                 onClick={() => {
                                     setShowCustomerModal(false);
                                     setCustomerCode('');
                                     setError('');
                                 }}
-                                className="w-full py-3 bg-slate-900 text-white rounded-xl font-semibold hover:bg-slate-800 transition"
+                                className="w-full py-5 bg-[#0f172a] text-white rounded-2xl font-black hover:bg-slate-800 transition-all duration-300 shadow-xl shadow-slate-200"
                             >
-                                เสร็จสิ้น
+                                ตกลง
                             </button>
                         </div>
                     </div>

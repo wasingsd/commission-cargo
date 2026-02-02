@@ -147,6 +147,17 @@ export async function POST(req: Request) {
             note: body.note || undefined,
         });
 
+        // Log Activity
+        const { logActivity } = await import('@/lib/audit');
+        const { AuditAction } = await import('@/lib/enums');
+        await logActivity({
+            action: AuditAction.CREATE,
+            entityType: 'SHIPMENT',
+            entityId: shipment.id,
+            message: `Created shipment ${shipment.trackingNo}`,
+            afterJson: shipment
+        });
+
         return NextResponse.json(shipment);
 
     } catch (e: any) {
