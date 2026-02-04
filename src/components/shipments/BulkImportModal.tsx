@@ -80,54 +80,69 @@ export function BulkImportModal({ onClose, onSuccess }: BulkImportModalProps) {
                 if (!line) continue;
 
                 // Split by tab (from Excel) or multiple spaces
-                const cols = line.split(/\t/).map(c => c.trim());
+                const cols = line.split(/\t| {2,}/).map(c => c.trim()).filter(c => c !== '');
 
-                // Expected format based on user's example:
-                // 0: เลขพัสดุ (Tracking)
-                // 1: เลข PO/Lot
-                // 2: ผู้ใช้งาน (Customer Code)
-                // 3: ราคา (Price with unit like "112.5 (ราคา KG)")
-                // 4: ประเภทสินค้า (Product Type)
-                // 5: เข้าโกดัง (Date In)
-                // 6: ออกโกดัง (optional)
-                // 7: ถึงโกดังปลายทาง (optional)
-                // 8: จำนวน (Quantity)
-                // 9: KG
-                // 10: ขนาด (Size)
-                // 11: CBM
+                if (cols.length < 3) continue;
 
-                if (cols.length < 4) {
-                    // Skip header or malformed rows
-                    continue;
+                // Detect header
+                if (cols[0].includes('เลขพัสดุ') || cols[0].toLowerCase().includes('track')) continue;
+
+                // Flexible Field Mapping using Pivot (Customer Code PR-)
+                const custIdx = cols.findIndex(c => c.startsWith('PR-'));
+
+                let customerCode = '';
+                let sellBase = 0;
+                let productTypeRaw = '';
+                let dateIn = '';
+                let weightKg = 0;
+                let cbm = 0;
+
+                if (custIdx !== -1) {
+                    customerCode = cols[custIdx];
+                    // Map relative to customer code
+                    // Correct offsets based on user's two common formats (11-col and 12-col)
+                    sellBase = parseNumber(cols[custIdx + 1] || '0');
+                    productTypeRaw = cols[custIdx + 2] || '';
+                    dateIn = cols[custIdx + 3] || '';
+
+                    // Standard logic for KG/CBM usually at fixed offsets from pivot or end
+                    // In both 11 and 12-col, KG is +7 and CBM is +9 from pivot
+                    weightKg = parseNumber(cols[custIdx + 7] || '0');
+                    cbm = parseNumber(cols[custIdx + 9] || '0');
+                } else {
+                    // Fallback to legacy static mapping if no PR- found
+                    customerCode = cols[2] || '';
+                    sellBase = parseNumber(cols[3] || '0');
+                    productTypeRaw = cols[4] || '';
+                    dateIn = cols[5] || '';
+                    weightKg = parseNumber(cols[9] || '0');
+                    cbm = parseNumber(cols[11] || '0');
                 }
 
-                // Detect if it's a header row
-                if (cols[0].includes('เลขพัสดุ') || cols[0].toLowerCase() === 'tracking') {
-                    continue;
+                // Extra safety for price (if another col has specifically "(ราคา")
+                const explicitPriceCol = cols.find(c => c.includes('(ราคา'));
+                if (explicitPriceCol) {
+                    sellBase = parseNumber(explicitPriceCol);
                 }
 
                 const row: ParsedRow = {
                     trackingNo: cols[0] || '',
-                    // cols[1] is PO/Lot - we skip it for now
-                    customerCode: cols[2] || '',
-                    sellBase: parseNumber(cols[3]),
-                    productType: parseProductType(cols[4] || ''),
-                    transport: 'TRUCK', // Default, can be inferred from PO field if contains "รถ"
-                    dateIn: cols[5] || '',
-                    weightKg: parseNumber(cols[9] || '0'),
-                    cbm: parseNumber(cols[11] || '0'),
+                    customerCode,
+                    sellBase,
+                    productType: parseProductType(productTypeRaw),
+                    transport: 'TRUCK',
+                    dateIn,
+                    weightKg,
+                    cbm,
                     note: ''
                 };
 
-                // Detect transport from PO field
-                if (cols[1] && cols[1].includes('รถ')) {
-                    row.transport = 'TRUCK';
-                } else if (cols[1] && (cols[1].includes('เรือ') || cols[1].includes('ทะเล'))) {
-                    row.transport = 'SHIP';
-                }
+                // Detect transport
+                const allText = line.toLowerCase();
+                if (allText.includes('รถ') || allText.includes('truck')) row.transport = 'TRUCK';
+                if (allText.includes('เรือ') || allText.includes('ship') || allText.includes('ทะเล')) row.transport = 'SHIP';
 
-                // Only add if has tracking
-                if (row.trackingNo) {
+                if (row.trackingNo && row.trackingNo.length > 3) {
                     rows.push(row);
                 }
             }
@@ -305,9 +320,9 @@ export function BulkImportModal({ onClose, onSuccess }: BulkImportModalProps) {
                                                     <td className="px-3 py-2 text-right text-slate-900">{row.sellBase.toLocaleString()}</td>
                                                     <td className="px-3 py-2 text-center">
                                                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${row.productType === 'SPECIAL' ? 'bg-purple-100 text-purple-700' :
-                                                                row.productType === 'TISI' ? 'bg-blue-100 text-blue-700' :
-                                                                    row.productType === 'FDA' ? 'bg-green-100 text-green-700' :
-                                                                        'bg-slate-100 text-slate-600'
+                                                            row.productType === 'TISI' ? 'bg-blue-100 text-blue-700' :
+                                                                row.productType === 'FDA' ? 'bg-green-100 text-green-700' :
+                                                                    'bg-slate-100 text-slate-600'
                                                             }`}>
                                                             {row.productType}
                                                         </span>

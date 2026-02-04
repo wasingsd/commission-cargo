@@ -22,7 +22,9 @@ import {
     Upload,
     Edit2,
     Trash2,
-    X
+    X,
+    RefreshCw,
+    RotateCw
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
@@ -36,6 +38,7 @@ interface Shipment {
     dateIn: string;
     trackingNo: string;
     transport: 'TRUCK' | 'SHIP';
+    productType: 'GENERAL' | 'TISI' | 'FDA' | 'SPECIAL';
     weightKg: number;
     cbm: number;
     sellBase: number;
@@ -51,6 +54,9 @@ export function ShipmentList() {
     const [loading, setLoading] = useState(true);
     const [showAddForm, setShowAddForm] = useState(false);
     const [showBulkImport, setShowBulkImport] = useState(false);
+    const [selectedIds, setSelectedIds] = useState<string[]>([]);
+    const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+    const [isBulkEditing, setIsBulkEditing] = useState(false);
     const [filters, setFilters] = useState({
         search: '',
         month: '',
@@ -99,6 +105,123 @@ export function ShipmentList() {
             alert('เกิดข้อผิดพลาดในการลบ (Network Error)');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleBulkDelete = async () => {
+        if (!confirm(`ยืนยันการลบ ${selectedIds.length} รายการที่เลือก?\nการกระทำนี้ไม่สามารถเรียกคืนได้`)) return;
+
+        setIsBulkDeleting(true);
+        try {
+            const res = await fetch('/api/shipments/bulk', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids: selectedIds })
+            });
+            const json = await res.json();
+
+            if (res.ok) {
+                setSelectedIds([]);
+                fetchShipments();
+            } else {
+                alert(`ลบรายการไม่สำเร็จ: ${json.message || json.error}`);
+            }
+        } catch (error) {
+            console.error('Error bulk deleting:', error);
+            alert('เกิดข้อผิดพลาดในการลบ (Network Error)');
+        } finally {
+            setIsBulkDeleting(false);
+        }
+    };
+
+    const handleBulkEditTransport = async (transport: 'TRUCK' | 'SHIP') => {
+        if (!confirm(`ยืนยันการเปลี่ยนประเภทเป็น ${transport === 'TRUCK' ? 'ทางบก' : 'ทางเรือ'} สำหรับ ${selectedIds.length} รายการ?`)) return;
+
+        setIsBulkEditing(true);
+        try {
+            const res = await fetch('/api/shipments/bulk', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids: selectedIds, data: { transport } })
+            });
+
+            if (res.ok) {
+                setSelectedIds([]);
+                fetchShipments();
+            } else {
+                const json = await res.json();
+                alert(`แก้ไขไม่สำเร็จ: ${json.error}`);
+            }
+        } catch (error) {
+            console.error('Error bulk editing:', error);
+        } finally {
+            setIsBulkEditing(false);
+        }
+    };
+
+    const handleBulkEditProductType = async (productType: 'GENERAL' | 'TISI' | 'FDA' | 'SPECIAL') => {
+        const typeLabels: Record<string, string> = {
+            'GENERAL': 'ทั่วไป',
+            'TISI': 'มอก.',
+            'FDA': 'อย.',
+            'SPECIAL': 'พิเศษ'
+        };
+        if (!confirm(`ยืนยันการเปลี่ยนประเภทสินค้าเป็น "${typeLabels[productType]}" สำหรับ ${selectedIds.length} รายการ?`)) return;
+
+        setIsBulkEditing(true);
+        try {
+            const res = await fetch('/api/shipments/bulk', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids: selectedIds, data: { productType } })
+            });
+
+            if (res.ok) {
+                setSelectedIds([]);
+                fetchShipments();
+            } else {
+                const json = await res.json();
+                alert(`แก้ไขไม่สำเร็จ: ${json.error}`);
+            }
+        } catch (error) {
+            console.error('Error bulk editing:', error);
+        } finally {
+            setIsBulkEditing(false);
+        }
+    };
+
+    const [isRecalculating, setIsRecalculating] = useState(false);
+    const handleRecalculateAll = async () => {
+        if (!confirm('ยืนยันระบบการคำนวณต้นทุน/ค่าคอมมิชชั่นใหม่ทั้งหมดตามเรทปัจจุบัน?')) return;
+
+        setIsRecalculating(true);
+        try {
+            const res = await fetch('/api/shipments/recalculate', { method: 'POST' });
+            const json = await res.json();
+            if (res.ok) {
+                alert(`คำนวณใหม่สำเร็จ ${json.count} รายการ`);
+                fetchShipments();
+            } else {
+                alert(`ล้มเหลว: ${json.error}`);
+            }
+        } catch (e: any) {
+            alert('Error: ' + e.message);
+        } finally {
+            setIsRecalculating(false);
+        }
+    };
+
+    const toggleSelect = (id: string) => {
+        setSelectedIds(prev =>
+            prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+        );
+    };
+
+    const toggleSelectAll = () => {
+        if (selectedIds.length === shipments.length) {
+            setSelectedIds([]);
+        } else {
+            setSelectedIds(shipments.map(item => item.id));
         }
     };
 
@@ -174,6 +297,14 @@ export function ShipmentList() {
                         <Upload className="w-4 h-4" />
                         นำเข้าหลายรายการ
                     </button>
+                    <button
+                        onClick={handleRecalculateAll}
+                        disabled={isRecalculating}
+                        className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3.5 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-xl text-sm font-semibold hover:bg-indigo-100 transition-all shadow-sm active:scale-95 disabled:opacity-50"
+                    >
+                        <RefreshCw className={`w-4 h-4 ${isRecalculating ? 'animate-spin' : ''}`} />
+                        คำนวณใหม่ {isRecalculating ? '...' : ''}
+                    </button>
                     <button className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3.5 bg-white border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-all shadow-sm">
                         <Download className="w-4 h-4" />
                         ส่งออกข้อมูล
@@ -211,6 +342,14 @@ export function ShipmentList() {
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="bg-slate-50/50 border-b border-slate-100">
+                                <th className="px-6 py-5 w-10">
+                                    <input
+                                        type="checkbox"
+                                        className="w-4 h-4 rounded border-slate-300 text-accent-500 focus:ring-accent-500 cursor-pointer"
+                                        checked={selectedIds.length === shipments.length && shipments.length > 0}
+                                        onChange={toggleSelectAll}
+                                    />
+                                </th>
                                 <th className="px-6 py-5 text-xs font-bold text-slate-400 tracking-wider">รายละเอียดพัสดุ</th>
                                 <th className="px-6 py-5 text-xs font-bold text-slate-400 tracking-wider text-center">ประเภท</th>
                                 <th className="px-6 py-5 text-xs font-bold text-slate-400 tracking-wider text-right">สัดส่วน กก./CBM</th>
@@ -239,7 +378,15 @@ export function ShipmentList() {
                                 </tr>
                             ) : (
                                 shipments.map((item) => (
-                                    <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
+                                    <tr key={item.id} className={`hover:bg-slate-50/50 transition-colors group ${selectedIds.includes(item.id) ? 'bg-accent-50/30' : ''}`}>
+                                        <td className="px-6 py-6">
+                                            <input
+                                                type="checkbox"
+                                                className="w-4 h-4 rounded border-slate-300 text-accent-500 focus:ring-accent-500 cursor-pointer"
+                                                checked={selectedIds.includes(item.id)}
+                                                onChange={() => toggleSelect(item.id)}
+                                            />
+                                        </td>
                                         <td className="px-6 py-6">
                                             <div className="flex items-center gap-4">
                                                 <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-white group-hover:shadow-sm transition-all">
@@ -252,8 +399,17 @@ export function ShipmentList() {
                                             </div>
                                         </td>
                                         <td className="px-6 py-6 text-center">
-                                            <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-50 rounded-lg text-[11px] font-bold text-slate-500">
-                                                {item.transport === 'TRUCK' ? 'ทางบก' : 'ทางเรือ'}
+                                            <div className="flex flex-col items-center gap-1.5">
+                                                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-50 rounded-lg text-[11px] font-bold text-slate-500">
+                                                    {item.transport === 'TRUCK' ? 'ทางบก' : 'ทางเรือ'}
+                                                </div>
+                                                <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded border uppercase tracking-tighter ${item.productType === 'SPECIAL' ? 'bg-purple-50 text-purple-600 border-purple-100' :
+                                                    item.productType === 'TISI' ? 'bg-blue-50 text-blue-600 border-blue-100' :
+                                                        item.productType === 'FDA' ? 'bg-green-50 text-green-600 border-green-100' :
+                                                            'bg-slate-50 text-slate-500 border-slate-200'
+                                                    }`}>
+                                                    {item.productType}
+                                                </span>
                                             </div>
                                         </td>
                                         <td className="px-6 py-6 text-right">
@@ -374,6 +530,96 @@ export function ShipmentList() {
                         fetchShipments();
                     }}
                 />
+            )}
+
+            {/* Floating Action Bar */}
+            {selectedIds.length > 0 && (
+                <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white rounded-2xl shadow-2xl px-6 py-4 flex items-center gap-6 z-[60] animate-in fade-in slide-in-from-bottom-4 duration-300 border border-slate-800/50 backdrop-blur-md">
+                    <div className="flex items-center gap-3 border-r border-slate-700 pr-6 mr-6">
+                        <div className="w-8 h-8 rounded-full bg-accent-500 flex items-center justify-center text-xs font-bold">
+                            {selectedIds.length}
+                        </div>
+                        <span className="text-sm font-semibold text-slate-300 whitespace-nowrap">เลือกอยู่</span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <div className="flex bg-slate-800 p-1 rounded-xl gap-1">
+                            <button
+                                onClick={() => handleBulkEditTransport('TRUCK')}
+                                disabled={isBulkEditing}
+                                title="เปลี่ยนเป็นทางบก"
+                                className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-700 rounded-lg transition-all text-[11px] font-bold disabled:opacity-50"
+                            >
+                                <TrendingUp className="w-3.5 h-3.5 text-accent-400" />
+                                ทางบก
+                            </button>
+                            <button
+                                onClick={() => handleBulkEditTransport('SHIP')}
+                                disabled={isBulkEditing}
+                                title="เปลี่ยนเป็นทางเรือ"
+                                className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-700 rounded-lg transition-all text-[11px] font-bold disabled:opacity-50"
+                            >
+                                <User className="w-3.5 h-3.5 text-blue-400" />
+                                ทางเรือ
+                            </button>
+                        </div>
+
+                        <div className="w-px h-6 bg-slate-700 mx-1" />
+
+                        <div className="flex bg-slate-800 p-1 rounded-xl gap-1">
+                            <button
+                                onClick={() => handleBulkEditProductType('GENERAL')}
+                                disabled={isBulkEditing}
+                                className="px-3 py-1.5 hover:bg-slate-700 rounded-lg transition-all text-[11px] font-bold disabled:opacity-50"
+                            >
+                                ทั่วไป
+                            </button>
+                            <button
+                                onClick={() => handleBulkEditProductType('TISI')}
+                                disabled={isBulkEditing}
+                                className="px-3 py-1.5 hover:bg-slate-700 rounded-lg transition-all text-[11px] font-bold disabled:opacity-50 text-amber-400"
+                            >
+                                มอก.
+                            </button>
+                            <button
+                                onClick={() => handleBulkEditProductType('FDA')}
+                                disabled={isBulkEditing}
+                                className="px-3 py-1.5 hover:bg-slate-700 rounded-lg transition-all text-[11px] font-bold disabled:opacity-50 text-green-400"
+                            >
+                                อย.
+                            </button>
+                            <button
+                                onClick={() => handleBulkEditProductType('SPECIAL')}
+                                disabled={isBulkEditing}
+                                className="px-3 py-1.5 hover:bg-slate-700 rounded-lg transition-all text-[11px] font-bold disabled:opacity-50 text-purple-400"
+                            >
+                                พิเศษ
+                            </button>
+                        </div>
+
+                        <div className="w-px h-6 bg-slate-700 mx-1" />
+
+                        <button
+                            onClick={handleBulkDelete}
+                            disabled={isBulkDeleting}
+                            className="flex items-center gap-2 px-4 py-2 hover:bg-red-500/10 text-red-400 rounded-xl transition-all text-sm font-bold disabled:opacity-50"
+                        >
+                            {isBulkDeleting ? (
+                                <div className="w-4 h-4 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin" />
+                            ) : (
+                                <Trash2 className="w-4 h-4" />
+                            )}
+                            ลบ
+                        </button>
+                    </div>
+
+                    <button
+                        onClick={() => setSelectedIds([])}
+                        className="p-2 hover:bg-slate-800 rounded-lg transition-colors ml-4"
+                    >
+                        <X className="w-5 h-5 text-slate-500 hover:text-white" />
+                    </button>
+                </div>
             )}
         </div>
     );

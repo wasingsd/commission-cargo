@@ -4,8 +4,9 @@ import { authOptions } from '@/lib/auth';
 import { firestore } from '@/lib/firestore';
 import { computeCost, computeCommission } from '@/lib/calc';
 import { format } from 'date-fns';
-import { ProductType, Transport } from '@/lib/enums';
+import { ProductType, Transport, AuditAction } from '@/lib/enums';
 import { parseTracking } from '@/lib/tracking';
+import { logActivity } from '@/lib/audit';
 
 interface BulkShipmentRow {
     trackingNo: string;
@@ -167,12 +168,11 @@ export async function POST(req: Request) {
         }
 
         // Audit Log for Bulk Action
-        await firestore.auditLogs.create({
-            actorUserId: session.user.id,
+        await logActivity({
+            action: AuditAction.CREATE,
             entityType: 'SHIPMENT',
             entityId: 'BULK_IMPORT',
-            action: 'CREATE',
-            message: `Bulk imported ${results.success} shipments (${results.failed} failed)`,
+            message: `นำเข้าข้อมูลแบบกลุ่ม ${results.success} รายการ (ล้มเหลว ${results.failed})`,
             afterJson: { results }
         });
 
@@ -183,6 +183,116 @@ export async function POST(req: Request) {
         });
     } catch (error: any) {
         console.error('Bulk import error:', error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+}
+
+export async function PATCH(req: Request) {
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    try {
+        const body = await req.json();
+        const { ids, data } = body as { ids: string[]; data: any };
+
+        if (!ids || !Array.isArray(ids) || ids.length === 0) {
+            return NextResponse.json({ error: 'No IDs provided' }, { status: 400 });
+        }
+
+        const activeRateCard = await firestore.rateCards.findActive();
+        let activeRateCardWithRows = null;
+        if (activeRateCard) {
+            activeRateCardWithRows = await firestore.rateCards.findById(activeRateCard.id, true);
+        }
+
+        const updates: { id: string; data: any }[] = [];
+
+        for (const id of ids) {
+            const shipment = await firestore.shipments.findById(id);
+            if (!shipment) continue;
+
+            const updatedData = { ...data };
+
+            // Recalculate if transport or productType or weights change
+            if (data.transport || data.productType || data.weightKg !== undefined || data.cbm !== undefined) {
+                const transport = data.transport || shipment.transport;
+                const productType = data.productType || shipment.productType;
+                const weightKg = data.weightKg !== undefined ? data.weightKg : shipment.weightKg;
+                const cbm = data.cbm !== undefined ? data.cbm : shipment.cbm;
+
+                let rateCbm = 0;
+                let rateKg = 0;
+
+                if (activeRateCardWithRows && activeRateCardWithRows.rows) {
+                    const rateRow = (activeRateCardWithRows.rows as any[]).find(r => r.productType === productType);
+                    if (rateRow) {
+                        if (transport === 'SHIP') {
+                            rateCbm = Number(rateRow.shipCbm);
+                            rateKg = Number(rateRow.shipKg);
+                        } else {
+                            rateCbm = Number(rateRow.truckCbm);
+                            rateKg = Number(rateRow.truckKg);
+                        }
+                    }
+                }
+
+                const costResult = computeCost({ weightKg, cbm, rateCbm, rateKg });
+                const commResult = computeCommission(shipment.sellBase, costResult.costFinal);
+
+                Object.assign(updatedData, {
+                    costCbm: costResult.costCbm,
+                    costKg: costResult.costKg,
+                    costFinal: costResult.costFinal,
+                    costRule: costResult.costRule,
+                    commissionValue: commResult.commissionValue,
+                });
+            }
+
+            updates.push({ id, data: updatedData });
+        }
+
+        await firestore.shipments.bulkUpdate(updates);
+
+        await logActivity({
+            action: AuditAction.UPDATE,
+            entityType: 'SHIPMENT',
+            entityId: 'BULK_UPDATE',
+            message: `แก้ไขรายการขนส่งแบบกลุ่ม ${updates.length} รายการ`,
+            afterJson: { ids, data }
+        });
+
+        return NextResponse.json({ success: true, count: updates.length });
+    } catch (error: any) {
+        console.error('Bulk update error:', error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+}
+
+export async function DELETE(req: Request) {
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    try {
+        const body = await req.json();
+        const { ids } = body as { ids: string[] };
+
+        if (!ids || !Array.isArray(ids) || ids.length === 0) {
+            return NextResponse.json({ error: 'No IDs provided' }, { status: 400 });
+        }
+
+        await firestore.shipments.bulkDelete(ids);
+
+        await logActivity({
+            action: AuditAction.DELETE,
+            entityType: 'SHIPMENT',
+            entityId: 'BULK_DELETE',
+            message: `ลบรายการขนส่งแบบกลุ่ม ${ids.length} รายการ`,
+            afterJson: { ids }
+        });
+
+        return NextResponse.json({ success: true, count: ids.length });
+    } catch (error: any) {
+        console.error('Bulk delete error:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }

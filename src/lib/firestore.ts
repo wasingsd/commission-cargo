@@ -608,12 +608,19 @@ export const firestore = {
         async bulkUpdate(updates: { id: string; data: Partial<Shipment> }[]): Promise<void> {
             const batch = getDb().batch();
             const now = new Date();
-
             for (const { id, data } of updates) {
                 const ref = getDb().collection(Collections.SHIPMENTS).doc(id);
                 batch.update(ref, { ...data, updatedAt: now });
             }
+            await batch.commit();
+        },
 
+        async bulkDelete(ids: string[]): Promise<void> {
+            const batch = getDb().batch();
+            for (const id of ids) {
+                const ref = getDb().collection(Collections.SHIPMENTS).doc(id);
+                batch.delete(ref);
+            }
             await batch.commit();
         },
     },

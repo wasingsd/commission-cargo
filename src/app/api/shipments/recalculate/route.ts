@@ -1,113 +1,96 @@
 import { NextResponse } from 'next/server';
-import { firestore } from '@/lib/firestore';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { computeCommission, computeCost } from '@/lib/calc';
+import { firestore } from '@/lib/firestore';
+import { computeCost, computeCommission } from '@/lib/calc';
+import { logActivity } from '@/lib/audit';
+import { AuditAction } from '@/lib/enums';
 
-export async function POST(req: Request) {
+export async function POST() {
     const session = await getServerSession(authOptions);
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     try {
-        const body = await req.json();
-        const { filters, newRateCardId } = body;
-
-        if (!newRateCardId) {
-            return NextResponse.json({ error: "New Rate Card ID is required" }, { status: 400 });
+        // Get active rate card
+        const activeRateCard = await firestore.rateCards.findActive();
+        if (!activeRateCard) {
+            return NextResponse.json({ error: 'ไม่พบเรทราคาที่เปิดใช้งานอยู่' }, { status: 400 });
         }
 
-        // Build where clause
-        const queryFilters: {
-            monthKey?: string;
-            customerId?: string;
-            salespersonId?: string;
-        } = {};
-        if (filters?.monthKey) queryFilters.monthKey = filters.monthKey;
-        if (filters?.customerId) queryFilters.customerId = filters.customerId;
-        if (filters?.salespersonId) queryFilters.salespersonId = filters.salespersonId;
-
-        // Fetch shipments
-        const shipments = await firestore.shipments.findAll(queryFilters);
-        if (shipments.length === 0) {
-            return NextResponse.json({ message: "No shipments found matching filters", count: 0 });
+        const activeRateCardWithRows = await firestore.rateCards.findById(activeRateCard.id, true);
+        if (!activeRateCardWithRows || !activeRateCardWithRows.rows) {
+            return NextResponse.json({ error: 'เรทราคาไม่มีข้อมูลอัตรา' }, { status: 400 });
         }
 
-        // Fetch new rate card with rows
-        const rateCard = await firestore.rateCards.findById(newRateCardId, true);
-        const rateRows = rateCard?.rows || [];
+        // Fetch all shipments
+        const allShipments = await firestore.shipments.findAll();
 
+        const updates: { id: string; data: any }[] = [];
         let count = 0;
 
-        // Calculate stats for Audit
-        const beforeState = {
-            count: shipments.length,
-            sumCost: shipments.reduce((s, x) => s + Number(x.costFinal || 0), 0),
-            sumCommission: shipments.reduce((s, x) => s + Number(x.commissionValue || 0), 0)
-        };
+        for (const shipment of allShipments) {
+            // Only recalculate if it's using AUTO cost mode (which is default)
+            if (shipment.costMode === 'MANUAL') continue;
 
-        // Prepare bulk updates
-        const updates: { id: string; data: Record<string, unknown> }[] = [];
-
-        for (const sh of shipments) {
-            // Find rate row for this product type
-            const rateRow = rateRows.find(r => r.productType === sh.productType);
+            const transport = shipment.transport;
+            const productType = shipment.productType || 'GENERAL';
+            const weightKg = shipment.weightKg || 0;
+            const cbm = shipment.cbm || 0;
 
             let rateCbm = 0;
             let rateKg = 0;
 
+            const rateRow = (activeRateCardWithRows.rows as any[]).find(r => r.productType === productType);
             if (rateRow) {
-                // Select rates based on transport type
-                if (sh.transport === 'TRUCK') {
-                    rateCbm = Number(rateRow.truckCbm);
-                    rateKg = Number(rateRow.truckKg);
-                } else if (sh.transport === 'SHIP') {
+                if (transport === 'SHIP') {
                     rateCbm = Number(rateRow.shipCbm);
                     rateKg = Number(rateRow.shipKg);
+                } else {
+                    rateCbm = Number(rateRow.truckCbm);
+                    rateKg = Number(rateRow.truckKg);
                 }
             }
 
-            const costRes = computeCost({
-                weightKg: Number(sh.weightKg),
-                cbm: Number(sh.cbm),
-                rateCbm,
-                rateKg
-            });
+            const costResult = computeCost({ weightKg, cbm, rateCbm, rateKg });
+            const commResult = computeCommission(shipment.sellBase, costResult.costFinal);
 
-            // Assuming sellBase doesn't change
-            const commRes = computeCommission(Number(sh.sellBase), costRes.costFinal);
+            // Check if values actually changed to avoid unnecessary updates?
+            // For simplicity, we just update all.
 
             updates.push({
-                id: sh.id,
+                id: shipment.id,
                 data: {
-                    rateCardUsedId: newRateCardId,
-                    costCbm: costRes.costCbm,
-                    costKg: costRes.costKg,
-                    costFinal: costRes.costFinal,
-                    costRule: costRes.costRule,
-                    commissionMethod: commRes.commissionMethod,
-                    commissionValue: commRes.commissionValue
+                    rateCardUsedId: activeRateCard.id,
+                    costCbm: costResult.costCbm,
+                    costKg: costResult.costKg,
+                    costFinal: costResult.costFinal,
+                    costRule: costResult.costRule,
+                    commissionMethod: commResult.commissionMethod,
+                    commissionValue: commResult.commissionValue,
                 }
             });
             count++;
         }
 
-        // Perform bulk update
-        await firestore.shipments.bulkUpdate(updates);
+        // Bulk update in batches of 500 (Firestore limit)
+        if (updates.length > 0) {
+            for (let i = 0; i < updates.length; i += 500) {
+                const batch = updates.slice(i, i + 500);
+                await firestore.shipments.bulkUpdate(batch);
+            }
+        }
 
-        // Create audit log
-        await firestore.auditLogs.create({
-            actorUserId: session.user.id,
+        await logActivity({
+            action: AuditAction.UPDATE,
             entityType: 'SHIPMENT',
-            entityId: 'BULK',
-            action: 'RECALC',
-            message: `Recalculated ${count} shipments. Filter: ${JSON.stringify(filters)}. RateCard: ${newRateCardId}`,
-            beforeJson: beforeState as Record<string, unknown>
+            entityId: 'ALL_RECALCULATE',
+            message: `สั่งคำนวณต้นทุนใหม่ทั้งหมด ${count} รายการ ตามเรท: ${activeRateCard.name}`,
+            afterJson: { rateCardId: activeRateCard.id, count }
         });
 
         return NextResponse.json({ success: true, count });
-
-    } catch (e: any) {
-        console.error(e);
-        return NextResponse.json({ error: e.message }, { status: 500 });
+    } catch (error: any) {
+        console.error('Recalculate error:', error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
