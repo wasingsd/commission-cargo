@@ -237,7 +237,8 @@ export async function PATCH(req: Request) {
                 }
 
                 const costResult = computeCost({ weightKg, cbm, rateCbm, rateKg });
-                const commResult = computeCommission(shipment.sellBase, costResult.costFinal);
+                const sellBase = shipment.sellBase ?? 0;
+                const commResult = computeCommission(sellBase, costResult.costFinal);
 
                 Object.assign(updatedData, {
                     costCbm: costResult.costCbm,

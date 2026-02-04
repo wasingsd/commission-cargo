@@ -52,7 +52,8 @@ export async function POST() {
             }
 
             const costResult = computeCost({ weightKg, cbm, rateCbm, rateKg });
-            const commResult = computeCommission(shipment.sellBase, costResult.costFinal);
+            const sellBase = shipment.sellBase ?? 0;
+            const commResult = computeCommission(sellBase, costResult.costFinal);
 
             // Check if values actually changed to avoid unnecessary updates?
             // For simplicity, we just update all.
