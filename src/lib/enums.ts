@@ -57,6 +57,16 @@ export const CommissionMethod = {
 } as const;
 export type CommissionMethod = (typeof CommissionMethod)[keyof typeof CommissionMethod];
 
+export const ShipmentStatus = {
+  PENDING: 'PENDING',
+  IN_WAREHOUSE: 'IN_WAREHOUSE',
+  DEPARTED: 'DEPARTED',
+  ARRIVED: 'ARRIVED',
+  DELIVERED: 'DELIVERED',
+  CANCELLED: 'CANCELLED',
+} as const;
+export type ShipmentStatus = (typeof ShipmentStatus)[keyof typeof ShipmentStatus];
+
 export const AuditAction = {
   CREATE: 'CREATE',
   UPDATE: 'UPDATE',

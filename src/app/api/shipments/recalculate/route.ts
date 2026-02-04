@@ -25,6 +25,10 @@ export async function POST() {
         // Fetch all shipments
         const allShipments = await firestore.shipments.findAll();
 
+        // Fetch all customers for salesperson lookup
+        const allCustomers = await firestore.customers.findAll();
+        const customerMap = new Map(allCustomers.map(c => [c.id, c]));
+
         const updates: { id: string; data: any }[] = [];
         let count = 0;
 
@@ -55,6 +59,15 @@ export async function POST() {
             const sellBase = shipment.sellBase ?? 0;
             const commResult = computeCommission(sellBase, costResult.costFinal);
 
+            // Get the latest salesperson from customer
+            let salespersonId = shipment.salespersonId;
+            if (shipment.customerId) {
+                const customer = customerMap.get(shipment.customerId);
+                if (customer && customer.assignedSalespersonId) {
+                    salespersonId = customer.assignedSalespersonId;
+                }
+            }
+
             // Check if values actually changed to avoid unnecessary updates?
             // For simplicity, we just update all.
 
@@ -68,6 +81,7 @@ export async function POST() {
                     costRule: costResult.costRule,
                     commissionMethod: commResult.commissionMethod,
                     commissionValue: commResult.commissionValue,
+                    salespersonId: salespersonId || null,
                 }
             });
             count++;

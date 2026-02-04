@@ -29,8 +29,8 @@ import {
 import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { ShipmentForm } from './ShipmentForm';
-import { BulkImportModal } from './BulkImportModal';
 import { formatCurrency, formatNumber } from '@/lib/calc';
+import { ConfirmModal } from '../common/ConfirmModal';
 
 
 interface Shipment {
@@ -53,7 +53,6 @@ export function ShipmentList() {
     const [shipments, setShipments] = useState<Shipment[]>([]);
     const [loading, setLoading] = useState(true);
     const [showAddForm, setShowAddForm] = useState(false);
-    const [showBulkImport, setShowBulkImport] = useState(false);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [isBulkDeleting, setIsBulkDeleting] = useState(false);
     const [isBulkEditing, setIsBulkEditing] = useState(false);
@@ -61,6 +60,24 @@ export function ShipmentList() {
         search: '',
         month: '',
         status: ''
+    });
+
+    // Pagination State
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(20);
+    const [total, setTotal] = useState(0);
+
+    const [confirmConfig, setConfirmConfig] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        onConfirm: () => void | Promise<void>;
+        isDestructive?: boolean;
+    }>({
+        isOpen: false,
+        title: '',
+        message: '',
+        onConfirm: () => { }
     });
 
     // Dropdown & Edit State
@@ -85,78 +102,95 @@ export function ShipmentList() {
     };
 
     const handleDelete = async (e: React.MouseEvent, id: string, trackingNo: string) => {
-        e.stopPropagation(); // Prevent row click or other events
-        if (!confirm(`ยืนยันการลบรายการ ${trackingNo}?\nการกระทำนี้ไม่สามารถเรียกคืนได้`)) return;
-
-        setActiveDropdownId(null);
-        setLoading(true);
-        try {
-            const res = await fetch(`/api/shipments/${id}`, { method: 'DELETE' });
-            const json = await res.json();
-
-            if (res.ok) {
-                fetchShipments();
-            } else {
-                console.error('Delete failed:', json);
-                alert(`ลบรายการไม่สำเร็จ: ${json.message || json.error || 'Unknown error'}`);
+        e.stopPropagation();
+        setConfirmConfig({
+            isOpen: true,
+            title: 'ยืนยันการลบรายการ',
+            message: `ยืนยันการลบรายการ ${trackingNo}?\nการกระทำนี้ไม่สามารถเรียกคืนได้`,
+            isDestructive: true,
+            onConfirm: async () => {
+                setConfirmConfig(prev => ({ ...prev, isOpen: false }));
+                setActiveDropdownId(null);
+                setLoading(true);
+                try {
+                    const res = await fetch(`/api/shipments/${id}`, { method: 'DELETE' });
+                    if (res.ok) {
+                        fetchShipments();
+                    } else {
+                        const json = await res.json();
+                        alert(`ลบรายการไม่สำเร็จ: ${json.message || json.error || 'Unknown error'}`);
+                    }
+                } catch (error) {
+                    console.error('Delete failed:', error);
+                    alert('เกิดข้อผิดพลาดในการลบ (Network Error)');
+                } finally {
+                    setLoading(false);
+                }
             }
-        } catch (error) {
-            console.error('Error deleting:', error);
-            alert('เกิดข้อผิดพลาดในการลบ (Network Error)');
-        } finally {
-            setLoading(false);
-        }
+        });
     };
 
     const handleBulkDelete = async () => {
-        if (!confirm(`ยืนยันการลบ ${selectedIds.length} รายการที่เลือก?\nการกระทำนี้ไม่สามารถเรียกคืนได้`)) return;
-
-        setIsBulkDeleting(true);
-        try {
-            const res = await fetch('/api/shipments/bulk', {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ids: selectedIds })
-            });
-            const json = await res.json();
-
-            if (res.ok) {
-                setSelectedIds([]);
-                fetchShipments();
-            } else {
-                alert(`ลบรายการไม่สำเร็จ: ${json.message || json.error}`);
+        setConfirmConfig({
+            isOpen: true,
+            title: 'ยืนยันการลบหลายรายการ',
+            message: `ยืนยันการลบ ${selectedIds.length} รายการที่เลือก?\nการกระทำนี้ไม่สามารถเรียกคืนได้`,
+            isDestructive: true,
+            onConfirm: async () => {
+                setConfirmConfig(prev => ({ ...prev, isOpen: false }));
+                setIsBulkDeleting(true);
+                try {
+                    const res = await fetch('/api/shipments/bulk', {
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ids: selectedIds })
+                    });
+                    if (res.ok) {
+                        setSelectedIds([]);
+                        fetchShipments();
+                    } else {
+                        const json = await res.json();
+                        alert(`ลบรายการไม่สำเร็จ: ${json.message || json.error}`);
+                    }
+                } catch (error) {
+                    console.error('Error bulk deleting:', error);
+                    alert('เกิดข้อผิดพลาดในการลบ (Network Error)');
+                } finally {
+                    setIsBulkDeleting(false);
+                }
             }
-        } catch (error) {
-            console.error('Error bulk deleting:', error);
-            alert('เกิดข้อผิดพลาดในการลบ (Network Error)');
-        } finally {
-            setIsBulkDeleting(false);
-        }
+        });
     };
 
     const handleBulkEditTransport = async (transport: 'TRUCK' | 'SHIP') => {
-        if (!confirm(`ยืนยันการเปลี่ยนประเภทเป็น ${transport === 'TRUCK' ? 'ทางบก' : 'ทางเรือ'} สำหรับ ${selectedIds.length} รายการ?`)) return;
+        setConfirmConfig({
+            isOpen: true,
+            title: 'ยืนยันการเปลี่ยนข้อมูล',
+            message: `ยืนยันการเปลี่ยนประเภทเป็น ${transport === 'TRUCK' ? 'ทางบก' : 'ทางเรือ'} สำหรับ ${selectedIds.length} รายการ?`,
+            onConfirm: async () => {
+                setConfirmConfig(prev => ({ ...prev, isOpen: false }));
+                setIsBulkEditing(true);
+                try {
+                    const res = await fetch('/api/shipments/bulk', {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ids: selectedIds, data: { transport } })
+                    });
 
-        setIsBulkEditing(true);
-        try {
-            const res = await fetch('/api/shipments/bulk', {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ids: selectedIds, data: { transport } })
-            });
-
-            if (res.ok) {
-                setSelectedIds([]);
-                fetchShipments();
-            } else {
-                const json = await res.json();
-                alert(`แก้ไขไม่สำเร็จ: ${json.error}`);
+                    if (res.ok) {
+                        setSelectedIds([]);
+                        fetchShipments();
+                    } else {
+                        const json = await res.json();
+                        alert(`แก้ไขไม่สำเร็จ: ${json.error}`);
+                    }
+                } catch (error) {
+                    console.error('Error bulk editing:', error);
+                } finally {
+                    setIsBulkEditing(false);
+                }
             }
-        } catch (error) {
-            console.error('Error bulk editing:', error);
-        } finally {
-            setIsBulkEditing(false);
-        }
+        });
     };
 
     const handleBulkEditProductType = async (productType: 'GENERAL' | 'TISI' | 'FDA' | 'SPECIAL') => {
@@ -166,49 +200,69 @@ export function ShipmentList() {
             'FDA': 'อย.',
             'SPECIAL': 'พิเศษ'
         };
-        if (!confirm(`ยืนยันการเปลี่ยนประเภทสินค้าเป็น "${typeLabels[productType]}" สำหรับ ${selectedIds.length} รายการ?`)) return;
 
-        setIsBulkEditing(true);
-        try {
-            const res = await fetch('/api/shipments/bulk', {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ids: selectedIds, data: { productType } })
-            });
+        setConfirmConfig({
+            isOpen: true,
+            title: 'ยืนยันการเปลี่ยนประเภทสินค้า',
+            message: `ยืนยันการเปลี่ยนประเภทเป็น ${typeLabels[productType]} สำหรับ ${selectedIds.length} รายการ?`,
+            onConfirm: async () => {
+                setConfirmConfig(prev => ({ ...prev, isOpen: false }));
+                setIsBulkEditing(true);
+                try {
+                    const res = await fetch('/api/shipments/bulk', {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ids: selectedIds, data: { productType } })
+                    });
 
-            if (res.ok) {
-                setSelectedIds([]);
-                fetchShipments();
-            } else {
-                const json = await res.json();
-                alert(`แก้ไขไม่สำเร็จ: ${json.error}`);
+                    if (res.ok) {
+                        setSelectedIds([]);
+                        fetchShipments();
+                    } else {
+                        const json = await res.json();
+                        alert(`แก้ไขไม่สำเร็จ: ${json.error}`);
+                    }
+                } catch (error) {
+                    console.error('Error bulk editing:', error);
+                } finally {
+                    setIsBulkEditing(false);
+                }
             }
-        } catch (error) {
-            console.error('Error bulk editing:', error);
-        } finally {
-            setIsBulkEditing(false);
-        }
+        });
     };
 
     const [isRecalculating, setIsRecalculating] = useState(false);
     const handleRecalculateAll = async () => {
-        if (!confirm('ยืนยันระบบการคำนวณต้นทุน/ค่าคอมมิชชั่นใหม่ทั้งหมดตามเรทปัจจุบัน?')) return;
+        if (typeof window === 'undefined') return;
 
-        setIsRecalculating(true);
-        try {
-            const res = await fetch('/api/shipments/recalculate', { method: 'POST' });
-            const json = await res.json();
-            if (res.ok) {
-                alert(`คำนวณใหม่สำเร็จ ${json.count} รายการ`);
-                fetchShipments();
-            } else {
-                alert(`ล้มเหลว: ${json.error}`);
+        setConfirmConfig({
+            isOpen: true,
+            title: 'ยืนยันการคำนวณใหม่',
+            message: 'ยืนยันระบบการคำนวณต้นทุน/ค่าคอมมิชชั่นใหม่ทั้งหมดตามเรทปัจจุบัน? (รวมถึงอัปเดตผู้ดูแลตามฐานข้อมูลล่าสุด)',
+            onConfirm: async () => {
+                setConfirmConfig(prev => ({ ...prev, isOpen: false }));
+                setIsRecalculating(true);
+                try {
+                    const res = await fetch('/api/shipments/recalculate', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    const json = await res.json();
+
+                    if (res.ok && json.success) {
+                        alert(`คำนวณใหม่สำเร็จ ${json.count} รายการ`);
+                        await fetchShipments();
+                    } else {
+                        alert(`ล้มเหลว: ${json.error || 'เกิดข้อผิดพลาดศทางเทคนิค'}`);
+                    }
+                } catch (e: any) {
+                    console.error('Recalculate error:', e);
+                    alert('เกิดข้อผิดพลาดในการเชื่อมต่อ: ' + e.message);
+                } finally {
+                    setIsRecalculating(false);
+                }
             }
-        } catch (e: any) {
-            alert('Error: ' + e.message);
-        } finally {
-            setIsRecalculating(false);
-        }
+        });
     };
 
     const toggleSelect = (id: string) => {
@@ -231,10 +285,16 @@ export function ShipmentList() {
         try {
             const params = new URLSearchParams();
             if (filters.search) params.append('search', filters.search);
+            if (filters.month) params.append('month', filters.month);
+            if (filters.status) params.append('status', filters.status);
+            params.append('page', page.toString());
+            params.append('limit', pageSize.toString());
+
             const res = await fetch(`/api/shipments?${params.toString()}`);
             const data = await res.json();
             if (data.success) {
                 setShipments(data.data);
+                setTotal(data.pagination?.total || 0);
             }
         } catch (error) {
             console.error('Failed to fetch shipments:', error);
@@ -244,8 +304,12 @@ export function ShipmentList() {
     };
 
     useEffect(() => {
+        setPage(1); // Reset to first page on filter change
+    }, [filters, pageSize]);
+
+    useEffect(() => {
         fetchShipments();
-    }, [filters]);
+    }, [filters, page, pageSize]);
 
     const getItemStatus = (item: Shipment) => {
         if (item.costFinal > item.sellBase) return 'LOSS';
@@ -290,24 +354,55 @@ export function ShipmentList() {
                         เพิ่มรายการใหม่
                     </Link>
 
-                    <button
-                        onClick={() => setShowBulkImport(true)}
+                    <Link
+                        href="/shipments/import"
                         className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3.5 bg-accent-500 text-white rounded-xl text-sm font-semibold hover:bg-accent-600 transition-all shadow-lg active:scale-95"
                     >
                         <Upload className="w-4 h-4" />
                         นำเข้าหลายรายการ
-                    </button>
+                    </Link>
                     <button
-                        onClick={handleRecalculateAll}
+                        onClick={() => handleRecalculateAll()}
                         disabled={isRecalculating}
                         className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3.5 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-xl text-sm font-semibold hover:bg-indigo-100 transition-all shadow-sm active:scale-95 disabled:opacity-50"
                     >
                         <RefreshCw className={`w-4 h-4 ${isRecalculating ? 'animate-spin' : ''}`} />
                         คำนวณใหม่ {isRecalculating ? '...' : ''}
                     </button>
-                    <button className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3.5 bg-white border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-all shadow-sm">
+                    <button
+                        onClick={async () => {
+                            try {
+                                const res = await fetch('/api/shipments/export');
+                                if (!res.ok) throw new Error('Export failed');
+                                const blob = await res.blob();
+                                const excelBlob = new Blob([blob], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                                const url = URL.createObjectURL(excelBlob);
+                                const a = document.createElement('a');
+                                a.href = url;
+
+                                // Better filename extraction
+                                const contentDisposition = res.headers.get('Content-Disposition');
+                                let filename = 'shipments_export.xlsx';
+                                if (contentDisposition) {
+                                    const filenameMatch = contentDisposition.match(/filename="?([^"; ]+)"?/);
+                                    if (filenameMatch && filenameMatch[1]) {
+                                        filename = filenameMatch[1];
+                                    }
+                                }
+
+                                a.download = filename;
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                                URL.revokeObjectURL(url);
+                            } catch (e) {
+                                alert('ส่งออกข้อมูลล้มเหลว');
+                            }
+                        }}
+                        className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3.5 bg-white border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-all shadow-sm"
+                    >
                         <Download className="w-4 h-4" />
-                        ส่งออกข้อมูล
+                        ส่งออก Excel
                     </button>
                 </div>
             </div>
@@ -326,9 +421,26 @@ export function ShipmentList() {
                 </div>
 
                 <div className="flex items-center gap-3 w-full md:w-auto">
-                    <select className="bg-white border border-slate-200 rounded-xl py-3 px-4 text-sm font-medium focus:ring-0 outline-none min-w-[140px]">
-                        <option>รอบเดือนทั้งหมด</option>
-                        <option>มกราคม 2026</option>
+                    <select
+                        className="bg-white border border-slate-200 rounded-xl py-3 px-4 text-sm font-medium focus:ring-0 outline-none min-w-[140px]"
+                        value={filters.status}
+                        onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+                    >
+                        <option value="">สถานะทั้งหมด</option>
+                        <option value="NORMAL" className="text-green-600 font-bold">ปกติ (Normal)</option>
+                        <option value="LOSS" className="text-red-500 font-bold">ขาดทุน (Loss)</option>
+                        <option value="MISSING" className="text-amber-500 font-bold">รอเรท (Missing)</option>
+                    </select>
+
+                    <select
+                        className="bg-white border border-slate-200 rounded-xl py-3 px-4 text-sm font-medium focus:ring-0 outline-none min-w-[140px]"
+                        value={filters.month}
+                        onChange={(e) => setFilters({ ...filters, month: e.target.value })}
+                    >
+                        <option value="">รอบเดือนทั้งหมด</option>
+                        <option value="2026-01">มกราคม 2026</option>
+                        <option value="2026-02">กุมภาพันธ์ 2026</option>
+                        <option value="2025-12">ธันวาคม 2025</option>
                     </select>
                     <button className="p-3 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all">
                         <Filter className="w-5 h-5" />
@@ -350,7 +462,9 @@ export function ShipmentList() {
                                         onChange={toggleSelectAll}
                                     />
                                 </th>
-                                <th className="px-6 py-5 text-xs font-bold text-slate-400 tracking-wider">รายละเอียดพัสดุ</th>
+                                <th className="px-6 py-5 text-xs font-bold text-slate-400 tracking-wider">วันที่เข้า</th>
+                                <th className="px-6 py-5 text-xs font-bold text-slate-400 tracking-wider">เลขพัสดุ</th>
+                                <th className="px-6 py-5 text-xs font-bold text-slate-400 tracking-wider">รหัสลูกค้า</th>
                                 <th className="px-6 py-5 text-xs font-bold text-slate-400 tracking-wider text-center">ประเภท</th>
                                 <th className="px-6 py-5 text-xs font-bold text-slate-400 tracking-wider text-right">สัดส่วน กก./CBM</th>
                                 <th className="px-6 py-5 text-xs font-bold text-slate-400 tracking-wider text-right">ราคาขาย/ต้นทุน</th>
@@ -362,7 +476,7 @@ export function ShipmentList() {
                         <tbody className="divide-y divide-slate-50">
                             {loading ? (
                                 <tr>
-                                    <td colSpan={7} className="py-20 text-center">
+                                    <td colSpan={9} className="py-20 text-center">
                                         <div className="flex flex-col items-center gap-3">
                                             <div className="w-8 h-8 border-4 border-slate-100 border-t-accent-500 rounded-full animate-spin" />
                                             <p className="text-xs font-medium text-slate-400">กำลังดึงข้อมูลขนส่ง...</p>
@@ -371,7 +485,7 @@ export function ShipmentList() {
                                 </tr>
                             ) : shipments.length === 0 ? (
                                 <tr>
-                                    <td colSpan={7} className="py-32 text-center grayscale opacity-50">
+                                    <td colSpan={9} className="py-32 text-center grayscale opacity-50">
                                         <Inbox className="w-16 h-16 mx-auto mb-4 text-slate-200" />
                                         <p className="text-sm font-semibold text-slate-900">ไม่พบรายการขนส่ง</p>
                                     </td>
@@ -387,16 +501,26 @@ export function ShipmentList() {
                                                 onChange={() => toggleSelect(item.id)}
                                             />
                                         </td>
-                                        <td className="px-6 py-6">
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-white group-hover:shadow-sm transition-all">
-                                                    <Package className="w-5 h-5" />
-                                                </div>
-                                                <div className="flex flex-col min-w-0">
-                                                    <span className="text-sm font-bold text-slate-900 tracking-tight">{item.trackingNo}</span>
-                                                    <span className="text-[11px] font-medium text-slate-400">ลูกค้า: {item.customer?.code || '-'}</span>
-                                                </div>
+                                        <td className="px-6 py-6 whitespace-nowrap">
+                                            <div className="flex items-center gap-2 text-slate-600">
+                                                <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                                                <span className="text-sm font-medium font-mono">
+                                                    {item.dateIn ? format(new Date(item.dateIn), 'dd/MM/yyyy') : '-'}
+                                                </span>
                                             </div>
+                                        </td>
+                                        <td className="px-6 py-6">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-white group-hover:shadow-sm transition-all">
+                                                    <Package className="w-4 h-4" />
+                                                </div>
+                                                <span className="text-sm font-bold text-slate-900 tracking-tight">{item.trackingNo}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-6">
+                                            <span className="inline-flex px-2.5 py-1 bg-accent-50 text-accent-700 rounded-lg text-xs font-bold border border-accent-100/50">
+                                                {item.customer?.code || '-'}
+                                            </span>
                                         </td>
                                         <td className="px-6 py-6 text-center">
                                             <div className="flex flex-col items-center gap-1.5">
@@ -496,13 +620,60 @@ export function ShipmentList() {
                     </table>
                 </div>
 
-                {/* Pagination Placeholder */}
-                <div className="px-8 py-5 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between">
-                    <p className="text-xs font-semibold text-slate-400">แสดง {shipments.length} รายการปัจจุบัน</p>
+                {/* Pagination */}
+                <div className="px-8 py-5 bg-slate-50/50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                        <p className="text-xs font-semibold text-slate-400">
+                            แสดง {Math.min(total, (page - 1) * pageSize + 1)}-{Math.min(total, page * pageSize)} จากทั้งหมด {total} รายการ
+                        </p>
+                        <select
+                            className="bg-white border border-slate-200 rounded-lg py-1.5 px-3 text-xs font-bold text-slate-600 outline-none focus:ring-2 focus:ring-accent-500/20"
+                            value={pageSize}
+                            onChange={(e) => setPageSize(Number(e.target.value))}
+                        >
+                            <option value={20}>20 แถว</option>
+                            <option value={50}>50 แถว</option>
+                            <option value={100}>100 แถว</option>
+                            <option value={200}>200 แถว</option>
+                        </select>
+                    </div>
+
                     <div className="flex items-center gap-2">
-                        <button className="px-4 py-2 text-xs font-bold text-slate-400 hover:text-slate-900 transition-colors">ย้อนกลับ</button>
-                        <button className="px-4 py-2 text-xs font-bold bg-white shadow-sm border border-slate-200 rounded-lg text-slate-900">1</button>
-                        <button className="px-4 py-2 text-xs font-bold text-slate-400 hover:text-slate-900 transition-colors">ถัดไป</button>
+                        <button
+                            onClick={() => setPage(p => Math.max(1, p - 1))}
+                            disabled={page === 1}
+                            className="px-4 py-2 text-xs font-bold text-slate-400 hover:text-slate-900 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                            ย้อนกลับ
+                        </button>
+
+                        <div className="flex items-center gap-1">
+                            {[...Array(Math.min(5, Math.ceil(total / pageSize)))].map((_, i) => {
+                                // Simplified page numbers for now
+                                const p = i + 1; // This is a placeholder, a real pagination might be better
+                                return (
+                                    <button
+                                        key={p}
+                                        onClick={() => setPage(p)}
+                                        className={`w-8 h-8 flex items-center justify-center text-xs font-bold rounded-lg transition-all ${page === p
+                                                ? 'bg-slate-900 text-white shadow-lg shadow-slate-900/20'
+                                                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                                            }`}
+                                    >
+                                        {p}
+                                    </button>
+                                );
+                            })}
+                            {Math.ceil(total / pageSize) > 5 && <span className="text-slate-400 px-1">...</span>}
+                        </div>
+
+                        <button
+                            onClick={() => setPage(p => Math.min(Math.ceil(total / pageSize), p + 1))}
+                            disabled={page >= Math.ceil(total / pageSize)}
+                            className="px-4 py-2 text-xs font-bold text-slate-400 hover:text-slate-900 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                            ถัดไป
+                        </button>
                     </div>
                 </div>
             </div>
@@ -522,15 +693,7 @@ export function ShipmentList() {
                 />
             )}
 
-            {showBulkImport && (
-                <BulkImportModal
-                    onClose={() => setShowBulkImport(false)}
-                    onSuccess={() => {
-                        setShowBulkImport(false);
-                        fetchShipments();
-                    }}
-                />
-            )}
+
 
             {/* Floating Action Bar */}
             {selectedIds.length > 0 && (
@@ -621,6 +784,15 @@ export function ShipmentList() {
                     </button>
                 </div>
             )}
+
+            <ConfirmModal
+                isOpen={confirmConfig.isOpen}
+                onClose={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+                onConfirm={confirmConfig.onConfirm}
+                title={confirmConfig.title}
+                message={confirmConfig.message}
+                isDestructive={confirmConfig.isDestructive}
+            />
         </div>
     );
 }

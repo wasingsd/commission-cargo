@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { firestore } from '@/lib/firestore';
+import { firestore, Shipment } from '@/lib/firestore';
 import { computeCost, computeCommission } from '@/lib/calc';
 import { format } from 'date-fns';
 import { ProductType, Transport, AuditAction } from '@/lib/enums';
@@ -12,11 +12,19 @@ interface BulkShipmentRow {
     trackingNo: string;
     customerCode: string;
     sellBase: number;
+    sellUnit?: 'CBM' | 'KG';
     productType: 'GENERAL' | 'TISI' | 'FDA' | 'SPECIAL';
     transport: 'TRUCK' | 'SHIP';
     dateIn?: string;
+    dateOut?: string;
+    dateArrived?: string;
     weightKg?: number;
     cbm?: number;
+    poNo?: string;
+    lotNo?: string;
+    quantity?: number;
+    dimensions?: string;
+    status?: string;
     note?: string;
 }
 
@@ -131,20 +139,67 @@ export async function POST(req: Request) {
                     costResult.costFinal
                 );
 
-                // Create shipment
-                await firestore.shipments.create({
+                // Parse additional dates
+                let dateOut: Date | undefined = undefined;
+                let dateArrived: Date | undefined = undefined;
+
+                if (row.dateOut) {
+                    const parts = row.dateOut.split(/[\/\-]/);
+                    if (parts.length === 3) {
+                        if (parts[0].length === 4) {
+                            dateOut = new Date(`${parts[0]}-${parts[1]}-${parts[2]}`);
+                        } else {
+                            dateOut = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+                        }
+                    }
+                }
+
+                if (row.dateArrived) {
+                    const parts = row.dateArrived.split(/[\/\-]/);
+                    if (parts.length === 3) {
+                        if (parts[0].length === 4) {
+                            dateArrived = new Date(`${parts[0]}-${parts[1]}-${parts[2]}`);
+                        } else {
+                            dateArrived = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+                        }
+                    }
+                }
+
+                // Map status string to enum
+                const mapStatus = (status?: string) => {
+                    if (!status) return 'PENDING';
+                    const s = status.toUpperCase();
+                    if (s === 'DELIVERED' || s.includes('ส่งแล้ว')) return 'DELIVERED';
+                    if (s === 'ARRIVED' || s.includes('ถึง')) return 'ARRIVED';
+                    if (s === 'DEPARTED' || s.includes('ออก')) return 'DEPARTED';
+                    if (s === 'IN_WAREHOUSE' || s.includes('โกดัง')) return 'IN_WAREHOUSE';
+                    if (s === 'CANCELLED' || s.includes('ยกเลิก')) return 'CANCELLED';
+                    return 'PENDING';
+                };
+
+                // Check for existing shipment with same tracking number
+                const existingShipment = await firestore.shipments.findByTrackingNo(row.trackingNo);
+
+                const shipmentData: Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'> = {
                     dateIn: dateIn || undefined,
+                    dateOut: dateOut && !isNaN(dateOut.getTime()) ? dateOut : undefined,
+                    dateArrived: dateArrived && !isNaN(dateArrived.getTime()) ? dateArrived : undefined,
                     monthKey: monthKey || undefined,
                     trackingNo: row.trackingNo,
                     trackingBase,
                     trackingSuffix: trackingSuffix ?? undefined,
+                    poNo: row.poNo || undefined,
+                    lotNo: row.lotNo || undefined,
                     customerId: customer.id,
                     salespersonId: salespersonId || undefined,
                     productType: (row.productType || 'GENERAL') as ProductType,
                     transport: (row.transport || 'TRUCK') as Transport,
+                    quantity: row.quantity || 1,
                     weightKg: row.weightKg || 0,
+                    dimensions: row.dimensions || undefined,
                     cbm: row.cbm || 0,
                     sellBase: row.sellBase || 0,
+                    sellUnit: row.sellUnit || 'CBM',
                     costMode: 'AUTO',
                     rateCardUsedId: activeRateCard?.id,
                     costCbm: costResult.costCbm,
@@ -153,8 +208,15 @@ export async function POST(req: Request) {
                     costRule: costResult.costRule,
                     commissionMethod: commResult.commissionMethod,
                     commissionValue: commResult.commissionValue,
+                    status: mapStatus(row.status) as any,
                     note: row.note || undefined,
-                });
+                };
+
+                if (existingShipment) {
+                    await firestore.shipments.update(existingShipment.id, shipmentData);
+                } else {
+                    await firestore.shipments.create(shipmentData);
+                }
 
                 results.success++;
             } catch (err: any) {

@@ -21,6 +21,7 @@ import {
     CostRule,
     CommissionMethod,
     AuditAction,
+    ShipmentStatus,
 } from './enums';
 
 // ============================================================
@@ -82,17 +83,24 @@ export interface RateCard {
 export interface Shipment {
     id: string;
     dateIn?: Date;
+    dateOut?: Date;              // ออกโกดัง
+    dateArrived?: Date;          // ถึงโกดังปลายทาง
     monthKey?: string;
     trackingNo: string;
     trackingBase?: string;
     trackingSuffix?: number;
+    poNo?: string;               // เลข PO
+    lotNo?: string;              // ล๊อต เช่น รถ 14245
     customerId?: string;
     salespersonId?: string;
     productType: ProductType;
     transport: Transport;
+    quantity?: number;           // จำนวนชิ้น
     weightKg?: number;
+    dimensions?: string;         // ขนาด เช่น 23 x 35 x 15
     cbm?: number;
     sellBase?: number;
+    sellUnit?: 'CBM' | 'KG';     // ราคาคิดตามหน่วยอะไร
     costMode: CostMode;
     costManual?: number;
     rateCardUsedId?: string;
@@ -102,6 +110,8 @@ export interface Shipment {
     costRule: CostRule;
     commissionMethod: CommissionMethod;
     commissionValue?: number;
+    imageUrl?: string;           // ลิงก์รูป
+    status?: ShipmentStatus;     // สถานะ: รอดำเนินการ, ส่งแล้ว, etc
     note?: string;
     createdAt: Date;
     updatedAt: Date;
@@ -195,6 +205,13 @@ export const firestore = {
             return docToData<User>(snapshot.docs[0]);
         },
 
+        async findByIds(ids: string[]): Promise<User[]> {
+            if (ids.length === 0) return [];
+            const refs = ids.map(id => getDb().collection(Collections.USERS).doc(id));
+            const docs = await getDb().getAll(...refs);
+            return docs.filter(doc => doc.exists).map(doc => docToData<User>(doc as QueryDocumentSnapshot<DocumentData>));
+        },
+
         async create(data: Omit<User, 'id' | 'createdAt' | 'updatedAt'>): Promise<User> {
             const now = new Date();
             const ref = getDb().collection(Collections.USERS).doc();
@@ -243,6 +260,13 @@ export const firestore = {
                 .get();
             if (snapshot.empty) return null;
             return docToData<Salesperson>(snapshot.docs[0]);
+        },
+
+        async findByIds(ids: string[]): Promise<Salesperson[]> {
+            if (ids.length === 0) return [];
+            const refs = ids.map(id => getDb().collection(Collections.SALESPERSONS).doc(id));
+            const docs = await getDb().getAll(...refs);
+            return docs.filter(doc => doc.exists).map(doc => docToData<Salesperson>(doc as QueryDocumentSnapshot<DocumentData>));
         },
 
         async findByEmail(email: string): Promise<Salesperson | null> {
@@ -327,11 +351,17 @@ export const firestore = {
             return docToData<Customer>(snapshot.docs[0]);
         },
 
+        async findByIds(ids: string[]): Promise<Customer[]> {
+            if (ids.length === 0) return [];
+            const refs = ids.map(id => getDb().collection(Collections.CUSTOMERS).doc(id));
+            const docs = await getDb().getAll(...refs);
+            return docs.filter(doc => doc.exists).map(doc => docToData<Customer>(doc as QueryDocumentSnapshot<DocumentData>));
+        },
+
         async findBySalesperson(salespersonId: string): Promise<Customer[]> {
             const snapshot = await getDb()
                 .collection(Collections.CUSTOMERS)
                 .where('assignedSalespersonId', '==', salespersonId)
-                .orderBy('createdAt', 'desc')
                 .get();
             return snapshot.docs.map((doc) => docToData<Customer>(doc));
         },
@@ -355,6 +385,10 @@ export const firestore = {
             const doc = await ref.get();
             if (!doc.exists) return null;
             return docToData<Customer>(doc as QueryDocumentSnapshot<DocumentData>);
+        },
+
+        async delete(id: string): Promise<void> {
+            await getDb().collection(Collections.CUSTOMERS).doc(id).delete();
         },
     },
 
@@ -399,6 +433,13 @@ export const firestore = {
                 .get();
             if (snapshot.empty) return null;
             return docToData<RateCard>(snapshot.docs[0]);
+        },
+
+        async findByIds(ids: string[]): Promise<RateCard[]> {
+            if (ids.length === 0) return [];
+            const refs = ids.map(id => getDb().collection(Collections.RATE_CARDS).doc(id));
+            const docs = await getDb().getAll(...refs);
+            return docs.filter(doc => doc.exists).map(doc => docToData<RateCard>(doc as QueryDocumentSnapshot<DocumentData>));
         },
 
         async create(data: Omit<RateCard, 'id' | 'createdAt' | 'updatedAt'>, rows?: Omit<RateRow, 'id' | 'rateCardId'>[]): Promise<RateCard> {
@@ -541,6 +582,16 @@ export const firestore = {
             const doc = await getDb().collection(Collections.SHIPMENTS).doc(id).get();
             if (!doc.exists) return null;
             return docToData<Shipment>(doc as QueryDocumentSnapshot<DocumentData>);
+        },
+
+        async findByTrackingNo(trackingNo: string): Promise<Shipment | null> {
+            const snapshot = await getDb()
+                .collection(Collections.SHIPMENTS)
+                .where('trackingNo', '==', trackingNo)
+                .limit(1)
+                .get();
+            if (snapshot.empty) return null;
+            return docToData<Shipment>(snapshot.docs[0]);
         },
 
         async findByIdWithRelations(id: string): Promise<Shipment | null> {

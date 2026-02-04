@@ -75,14 +75,18 @@ export function SalespersonSettings() {
     };
 
     const fetchCustomers = async (salespersonId: string) => {
+        setSelectedCustomers([]); // Clear old data
         try {
             const res = await fetch(`/api/salespersons/${salespersonId}`);
             const data = await res.json();
             if (data.success) {
                 setSelectedCustomers(data.data.customers || []);
+            } else {
+                setError(data.error || 'ไม่สามารถโหลดข้อมูลลูกค้าได้');
             }
         } catch (err) {
             console.error('Error fetching customers:', err);
+            setError('เกิดข้อผิดพลาดในการเชื่อมต่อ');
         }
     };
 
@@ -215,6 +219,8 @@ export function SalespersonSettings() {
     };
 
     const openCustomerModal = async (sp: Salesperson) => {
+        setError('');
+        setSelectedCustomers([]);
         setSelectedSalesperson(sp);
         await fetchCustomers(sp.id);
         setShowCustomerModal(true);

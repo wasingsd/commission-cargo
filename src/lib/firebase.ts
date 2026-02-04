@@ -77,13 +77,26 @@ function getFirebaseApp(): App {
 }
 
 export function getDb(): Firestore {
+    const globalFirestore = global as unknown as { db: Firestore };
+
+    if (globalFirestore.db) {
+        return globalFirestore.db;
+    }
+
     try {
-        if (!db) {
-            getFirebaseApp();
-            db = getFirestore();
-            // Prevent "Cannot use undefined as a Firestore value" errors
+        getFirebaseApp();
+        db = getFirestore();
+        // Prevent "Cannot use undefined as a Firestore value" errors
+        try {
             db.settings({ ignoreUndefinedProperties: true });
+        } catch (settingsError) {
+            console.warn('Firestore settings already applied or could not be applied:', settingsError);
         }
+
+        if (process.env.NODE_ENV !== 'production') {
+            globalFirestore.db = db;
+        }
+
         return db;
     } catch (e: any) {
         console.error('Firestore getDb Error:', e);

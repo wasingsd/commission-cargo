@@ -174,50 +174,102 @@ export async function GET(req: Request) {
     const month = searchParams.get('month');
     const customerId = searchParams.get('customerId');
     const salesId = searchParams.get('salesId');
+    const status = searchParams.get('status');
+    const search = searchParams.get('search');
+
+    // Pagination params
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '20'); // Default 20 as requested
 
     const filters: {
         monthKey?: string;
         customerId?: string;
         salespersonId?: string;
+        status?: string;
     } = {};
 
     if (month) filters.monthKey = month;
     if (customerId) filters.customerId = customerId;
     if (salesId) filters.salespersonId = salesId;
+    if (status) filters.status = status;
 
     // Role-based filtering
     if (session.user.role === Role.SALE) {
         const salesperson = await firestore.salespersons.findByEmail(session.user.email!);
         if (!salesperson) {
-            // If user is a sale but doesn't have a linked salesperson record, return empty list
-            return NextResponse.json({ success: true, data: [] });
+            return NextResponse.json({ success: true, data: [], pagination: { total: 0, page, limit, totalPages: 0 } });
         }
         filters.salespersonId = salesperson.id;
     }
 
     const shipments = await firestore.shipments.findAll(filters);
 
-    // Populate relations
-    const populatedShipments = await Promise.all(
-        shipments.map(async (shipment) => {
-            const customer = shipment.customerId
-                ? await firestore.customers.findById(shipment.customerId)
-                : null;
-            const salesperson = shipment.salespersonId
-                ? await firestore.salespersons.findById(shipment.salespersonId)
-                : null;
-            const rateCardUsed = shipment.rateCardUsedId
-                ? await firestore.rateCards.findById(shipment.rateCardUsedId)
-                : null;
+    // 1. Collect all unique IDs needed for population
+    const customerIds = Array.from(new Set(shipments.map(s => s.customerId).filter(Boolean))) as string[];
+    const salespersonIds = Array.from(new Set(shipments.map(s => s.salespersonId).filter(Boolean))) as string[];
+    const rateCardIds = Array.from(new Set(shipments.map(s => s.rateCardUsedId).filter(Boolean))) as string[];
 
-            return {
-                ...shipment,
-                customer,
-                salesperson,
-                rateCardUsed: rateCardUsed ? { name: rateCardUsed.name } : null,
-            };
-        })
-    );
+    // 2. Fetch all required relations in parallel
+    const [customers, salespersons, rateCards] = await Promise.all([
+        customerIds.length > 0 ? firestore.customers.findByIds(customerIds) : Promise.resolve([]),
+        salespersonIds.length > 0 ? firestore.salespersons.findByIds(salespersonIds) : Promise.resolve([]),
+        rateCardIds.length > 0 ? firestore.rateCards.findByIds(rateCardIds) : Promise.resolve([]),
+    ]);
 
-    return NextResponse.json({ success: true, data: populatedShipments });
+    // 3. Create maps for O(1) lookup
+    const customerMap = new Map(customers.map((c: any) => [c.id, c]));
+    const salespersonMap = new Map(salespersons.map((s: any) => [s.id, s]));
+    const rateCardMap = new Map(rateCards.map((r: any) => [r.id, r]));
+
+    // 4. Populate shipments
+    const populatedShipments = shipments.map((shipment) => {
+        const customer = shipment.customerId ? customerMap.get(shipment.customerId) : null;
+        const salesperson = shipment.salespersonId ? salespersonMap.get(shipment.salespersonId) : null;
+        const rateCardUsed = shipment.rateCardUsedId ? rateCardMap.get(shipment.rateCardUsedId) as any : null;
+
+        return {
+            ...shipment,
+            customer: customer || null,
+            salesperson: salesperson || null,
+            rateCardUsed: rateCardUsed ? { name: rateCardUsed.name } : null,
+        };
+    });
+
+    // Derived Status Filtering
+    let finalData = populatedShipments;
+    if (status) {
+        finalData = populatedShipments.filter(item => {
+            const cost = item.costFinal || 0;
+            const sell = item.sellBase || 0;
+            const derivedStatus = cost > sell ? 'LOSS' :
+                (cost === 0) ? 'MISSING' : 'NORMAL';
+            return derivedStatus === status;
+        });
+    }
+
+    // Search filter
+    if (search) {
+        const lowerSearch = search.toLowerCase();
+        finalData = finalData.filter(item =>
+            item.trackingNo?.toLowerCase().includes(lowerSearch) ||
+            item.customer?.code?.toLowerCase().includes(lowerSearch)
+        );
+    }
+
+    const totalCount = finalData.length;
+
+    // Apply slicing
+    const startIndex = (page - 1) * limit;
+    const paginatedData = finalData.slice(startIndex, startIndex + limit);
+
+    return NextResponse.json({
+        success: true,
+        data: paginatedData,
+        pagination: {
+            total: totalCount,
+            page,
+            limit,
+            totalPages: Math.ceil(totalCount / limit)
+        }
+    });
 }
