@@ -10,11 +10,11 @@ import { logActivity } from '@/lib/audit';
 
 interface BulkShipmentRow {
     trackingNo: string;
-    customerCode: string;
-    sellBase: number;
+    customerCode: string; // Required for new shipments, optional-ish for updates but frontend sends it
+    sellBase?: number;
     sellUnit?: 'CBM' | 'KG';
-    productType: 'GENERAL' | 'TISI' | 'FDA' | 'SPECIAL';
-    transport: 'TRUCK' | 'SHIP';
+    productType?: 'GENERAL' | 'TISI' | 'FDA' | 'SPECIAL';
+    transport?: 'TRUCK' | 'SHIP';
     dateIn?: string;
     dateOut?: string;
     dateArrived?: string;
@@ -62,61 +62,77 @@ export async function POST(req: Request) {
             const row = rows[i];
 
             try {
-                // Validate required fields
-                if (!row.trackingNo || !row.customerCode) {
+                // Validate required tracking number
+                if (!row.trackingNo) {
                     results.failed++;
                     results.errors.push({
                         row: i + 1,
-                        tracking: row.trackingNo || 'N/A',
-                        error: 'ขาดข้อมูลจำเป็น (เลขพัสดุ หรือ รหัสลูกค้า)'
+                        tracking: 'N/A',
+                        error: 'ขาดเลขพัสดุ'
                     });
                     continue;
                 }
 
-                // Find or create customer
-                let customer = await firestore.customers.findByCode(row.customerCode.trim());
+                // Check for existing shipment FIRST to determine merge base
+                const existingShipment = await firestore.shipments.findByTrackingNo(row.trackingNo);
 
-                if (!customer) {
-                    customer = await firestore.customers.create({ code: row.customerCode.trim() });
+                // Customer Handling
+                // If existing, we can keep existing customer if row.customerCode is missing?
+                // But frontend usually sends customerCode. IF it is missing/empty, we try to keep existing.
+                // If new shipment, customerCode is required.
+
+                let customerId = existingShipment?.customerId;
+                let salespersonId = existingShipment?.salespersonId;
+
+                if (row.customerCode) {
+                    // If code provided, lookup/create customer
+                    let customer = await firestore.customers.findByCode(row.customerCode.trim());
+                    if (!customer) {
+                        customer = await firestore.customers.create({ code: row.customerCode.trim() });
+                    }
+                    customerId = customer.id;
+                    // Update salesperson logic: If customer changed or new, check default salesperson
+                    // If keep existing customer, keep existing salesperson (unless implicitly changed? logic is complex, keeping simple: use customer's default if changing customer)
+                    if (!existingShipment || existingShipment.customerId !== customerId) {
+                        salespersonId = customer.assignedSalespersonId || undefined;
+                    }
+                } else if (!existingShipment) {
+                    results.failed++;
+                    results.errors.push({
+                        row: i + 1,
+                        tracking: row.trackingNo,
+                        error: 'สินค้าใหม่ต้องระบุรหัสลูกค้า'
+                    });
+                    continue;
                 }
 
-                // Parse tracking
-                const { base: trackingBase, suffix: trackingSuffix } = parseTracking(row.trackingNo);
-
-                // Parse date
-                let dateIn: Date | null = null;
+                // Parse dates (only if provided)
+                let dateIn: Date | undefined;
                 if (row.dateIn) {
-                    // Support formats: DD/MM/YYYY, YYYY-MM-DD
                     const parts = row.dateIn.split(/[\/\-]/);
                     if (parts.length === 3) {
-                        if (parts[0].length === 4) {
-                            // YYYY-MM-DD
-                            dateIn = new Date(`${parts[0]}-${parts[1]}-${parts[2]}`);
-                        } else {
-                            // DD/MM/YYYY
-                            dateIn = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
-                        }
+                        // Simple heuristic for YYYY-MM-DD vs DD/MM/YYYY
+                        if (parts[0].length === 4) dateIn = new Date(`${parts[0]}-${parts[1]}-${parts[2]}`);
+                        else dateIn = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
                     }
                 }
-                if (!dateIn || isNaN(dateIn.getTime())) {
-                    dateIn = new Date();
-                }
 
-                const monthKey = format(dateIn, 'yyyy-MM');
+                // Effective Values for Calculation (Merge New ?? Old ?? Default)
+                const efTransport = row.transport ?? existingShipment?.transport ?? 'TRUCK';
+                const efProductType = row.productType ?? existingShipment?.productType ?? 'GENERAL';
+                const efWeightKg = row.weightKg ?? existingShipment?.weightKg ?? 0;
+                const efCbm = row.cbm ?? existingShipment?.cbm ?? 0;
+                const efSellBase = row.sellBase ?? existingShipment?.sellBase ?? 0;
 
-                // Get salesperson from customer
-                const salespersonId = customer.assignedSalespersonId || undefined;
-
-                // Calculate cost
+                // Calculate rates based on effective types
                 let rateCbm = 0;
                 let rateKg = 0;
-
                 if (activeRateCardWithRows && activeRateCardWithRows.rows) {
                     const rateRow = activeRateCardWithRows.rows.find(
-                        r => r.productType === (row.productType || 'GENERAL')
+                        r => r.productType === efProductType
                     );
                     if (rateRow) {
-                        if (row.transport === 'SHIP') {
+                        if (efTransport === 'SHIP') {
                             rateCbm = Number(rateRow.shipCbm);
                             rateKg = Number(rateRow.shipKg);
                         } else { // TRUCK
@@ -127,47 +143,30 @@ export async function POST(req: Request) {
                 }
 
                 const costResult = computeCost({
-                    weightKg: row.weightKg,
-                    cbm: row.cbm,
+                    weightKg: efWeightKg,
+                    cbm: efCbm,
                     rateCbm,
                     rateKg
                 });
 
-                // Calculate commission
                 const commResult = computeCommission(
-                    row.sellBase || 0,
+                    efSellBase,
                     costResult.costFinal
                 );
 
-                // Parse additional dates
-                let dateOut: Date | undefined = undefined;
-                let dateArrived: Date | undefined = undefined;
+                // Prepare final data object
+                // If row field is undefined, we generally want to KEEP existing (if update) or IGNORE (if create - defaults apply)
+                // But since we have "effective" values for the important stuff, we can use them.
 
-                if (row.dateOut) {
-                    const parts = row.dateOut.split(/[\/\-]/);
-                    if (parts.length === 3) {
-                        if (parts[0].length === 4) {
-                            dateOut = new Date(`${parts[0]}-${parts[1]}-${parts[2]}`);
-                        } else {
-                            dateOut = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
-                        }
-                    }
-                }
+                const trackingParsed = parseTracking(row.trackingNo);
 
-                if (row.dateArrived) {
-                    const parts = row.dateArrived.split(/[\/\-]/);
-                    if (parts.length === 3) {
-                        if (parts[0].length === 4) {
-                            dateArrived = new Date(`${parts[0]}-${parts[1]}-${parts[2]}`);
-                        } else {
-                            dateArrived = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
-                        }
-                    }
-                }
+                // Determine Date In: New > Old > Now
+                const finalDateIn = dateIn || existingShipment?.dateIn || new Date();
+                const monthKey = format(finalDateIn, 'yyyy-MM');
 
-                // Map status string to enum
+                // Map status
                 const mapStatus = (status?: string) => {
-                    if (!status) return 'PENDING';
+                    if (!status) return undefined; // Return undefined if no status provided
                     const s = status.toUpperCase();
                     if (s === 'DELIVERED' || s.includes('ส่งแล้ว')) return 'DELIVERED';
                     if (s === 'ARRIVED' || s.includes('ถึง')) return 'ARRIVED';
@@ -177,30 +176,49 @@ export async function POST(req: Request) {
                     return 'PENDING';
                 };
 
-                // Check for existing shipment with same tracking number
-                const existingShipment = await firestore.shipments.findByTrackingNo(row.trackingNo);
+                const newStatus = mapStatus(row.status);
+                // If new status provided, use it. If not, keep existing. If new shipment, default to PENDING.
+                const finalStatus = newStatus ?? existingShipment?.status ?? 'PENDING';
+
+                // Other date fields
+                let dateOut: Date | undefined = undefined;
+                if (row.dateOut) { /* parse logic */
+                    const parts = row.dateOut.split(/[\/\-]/);
+                    if (parts.length === 3) dateOut = parts[0].length === 4 ? new Date(`${parts[0]}-${parts[1]}-${parts[2]}`) : new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+                }
+                const finalDateOut = dateOut ?? existingShipment?.dateOut;
+
+                let dateArrived: Date | undefined = undefined;
+                if (row.dateArrived) {
+                    const parts = row.dateArrived.split(/[\/\-]/);
+                    if (parts.length === 3) dateArrived = parts[0].length === 4 ? new Date(`${parts[0]}-${parts[1]}-${parts[2]}`) : new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+                }
+                const finalDateArrived = dateArrived ?? existingShipment?.dateArrived;
+
 
                 const shipmentData: Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'> = {
-                    dateIn: dateIn || undefined,
-                    dateOut: dateOut && !isNaN(dateOut.getTime()) ? dateOut : undefined,
-                    dateArrived: dateArrived && !isNaN(dateArrived.getTime()) ? dateArrived : undefined,
-                    monthKey: monthKey || undefined,
+                    dateIn: finalDateIn,
+                    dateOut: finalDateOut,
+                    dateArrived: finalDateArrived,
+                    monthKey,
                     trackingNo: row.trackingNo,
-                    trackingBase,
-                    trackingSuffix: trackingSuffix ?? undefined,
-                    poNo: row.poNo || undefined,
-                    lotNo: row.lotNo || undefined,
-                    customerId: customer.id,
-                    salespersonId: salespersonId || undefined,
-                    productType: (row.productType || 'GENERAL') as ProductType,
-                    transport: (row.transport || 'TRUCK') as Transport,
-                    quantity: row.quantity || 1,
-                    weightKg: row.weightKg || 0,
-                    dimensions: row.dimensions || undefined,
-                    cbm: row.cbm || 0,
-                    sellBase: row.sellBase || 0,
-                    sellUnit: row.sellUnit || 'CBM',
-                    costMode: 'AUTO',
+                    trackingBase: trackingParsed.base,
+                    trackingSuffix: trackingParsed.suffix ?? undefined,
+                    poNo: row.poNo ?? existingShipment?.poNo,
+                    lotNo: row.lotNo ?? existingShipment?.lotNo,
+                    customerId: customerId!, // Verified above
+                    salespersonId: salespersonId,
+                    productType: efProductType,
+                    transport: efTransport,
+                    quantity: row.quantity ?? existingShipment?.quantity ?? 1,
+                    weightKg: efWeightKg,
+                    dimensions: row.dimensions ?? existingShipment?.dimensions,
+                    cbm: efCbm,
+                    sellBase: efSellBase,
+                    sellUnit: row.sellUnit ?? existingShipment?.sellUnit ?? 'CBM',
+                    costMode: existingShipment?.costMode ?? 'AUTO', // Preserve manual cost override? Or reset? Usually bulk import implies auto recalc. Keeping 'AUTO' or existing if explicit.
+                    // Actually, if we just recalculated using 'AUTO' logic (rate card), we should probably ensure it's set to 'AUTO' or respect the calc. 
+                    // Let's set to 'AUTO' to be safe for imports, as we just ran auto-calc.
                     rateCardUsedId: activeRateCard?.id,
                     costCbm: costResult.costCbm,
                     costKg: costResult.costKg,
@@ -208,8 +226,14 @@ export async function POST(req: Request) {
                     costRule: costResult.costRule,
                     commissionMethod: commResult.commissionMethod,
                     commissionValue: commResult.commissionValue,
-                    status: mapStatus(row.status) as any,
-                    note: row.note || undefined,
+                    status: finalStatus as any,
+                    note: row.note || existingShipment?.note, // If row.note is empty string, it overwrites? If row.note is undefined (not in JSON), keep existing. 
+                    // Note: ParsedRow (frontend) sets note: '' by default. If we want to support 'keep note', we need frontend change or assume '' means 'keep' (dangerous if user wants to clear). 
+                    // Given the constraint "Overwrite data only for columns WHO HAVE DATA", empty string IS data (clearing). undefined is NO data.
+                    // Frontend 'note' is currently always empty string if not provided. This might be fine for now, or use || existing. 
+                    // User said "Column with no information", which usually means "Cell is empty".
+                    // If cell is empty, frontend sends empty string for note.
+                    // If we treat empty string as "no info", then `|| existing`.
                 };
 
                 if (existingShipment) {

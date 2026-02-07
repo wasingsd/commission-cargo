@@ -85,8 +85,8 @@ export function ShipmentList() {
     const [dropdownState, setDropdownState] = useState<{
         isOpen: boolean;
         item: Shipment | null;
-        position: { top: number; right: number };
-    }>({ isOpen: false, item: null, position: { top: 0, right: 0 } });
+        style: React.CSSProperties;
+    }>({ isOpen: false, item: null, style: {} });
 
     const [editItem, setEditItem] = useState<Shipment | undefined>(undefined);
 
@@ -596,12 +596,20 @@ export function ShipmentList() {
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         const rect = e.currentTarget.getBoundingClientRect();
+                                                        const menuHeight = 150; // Approximated height
+                                                        const isBottom = rect.bottom > window.innerHeight - menuHeight;
+
                                                         setDropdownState({
                                                             isOpen: true,
                                                             item: item,
-                                                            position: {
+                                                            style: isBottom ? {
+                                                                bottom: window.innerHeight - rect.top + 6,
+                                                                right: window.innerWidth - rect.right,
+                                                                transformOrigin: 'bottom right'
+                                                            } : {
                                                                 top: rect.bottom + 6,
-                                                                right: window.innerWidth - rect.right
+                                                                right: window.innerWidth - rect.right,
+                                                                transformOrigin: 'top right'
                                                             }
                                                         });
                                                     }}
@@ -796,10 +804,7 @@ export function ShipmentList() {
             {dropdownState.isOpen && dropdownState.item && typeof document !== 'undefined' && createPortal(
                 <div
                     className="action-menu-dropdown fixed w-48 bg-white rounded-xl shadow-xl border border-slate-100 z-[9999] overflow-hidden animate-in fade-in zoom-in-95 duration-200 origin-top-right"
-                    style={{
-                        top: dropdownState.position.top,
-                        right: dropdownState.position.right
-                    }}
+                    style={dropdownState.style}
                 >
                     <div className="p-1.5 space-y-0.5">
                         <button

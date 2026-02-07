@@ -20,12 +20,12 @@ interface BulkImportModalProps {
 interface ParsedRow {
     trackingNo: string;
     customerCode: string;
-    sellBase: number;
-    productType: 'GENERAL' | 'TISI' | 'FDA' | 'SPECIAL';
-    transport: 'TRUCK' | 'SHIP';
+    sellBase?: number;
+    productType?: 'GENERAL' | 'TISI' | 'FDA' | 'SPECIAL';
+    transport?: 'TRUCK' | 'SHIP';
     dateIn: string;
-    weightKg: number;
-    cbm: number;
+    weightKg?: number;
+    cbm?: number;
     note: string;
 }
 
@@ -40,26 +40,32 @@ export function BulkImportModal({ onClose, onSuccess }: BulkImportModalProps) {
         errors: { row: number; tracking: string; error: string }[];
     } | null>(null);
 
-    const parseProductType = (text: string): 'GENERAL' | 'TISI' | 'FDA' | 'SPECIAL' => {
+    const parseProductType = (text: string): 'GENERAL' | 'TISI' | 'FDA' | 'SPECIAL' | undefined => {
         const lower = text.toLowerCase().trim();
+        if (!lower) return undefined;
         if (lower.includes('พิเศษ') || lower === 'special') return 'SPECIAL';
         if (lower.includes('มอก') || lower === 'tisi') return 'TISI';
         if (lower.includes('fda') || lower.includes('อาหาร') || lower.includes('ยา')) return 'FDA';
         return 'GENERAL';
     };
 
-    const parseTransport = (text: string): 'TRUCK' | 'SHIP' => {
+    const parseTransport = (text: string): 'TRUCK' | 'SHIP' | undefined => {
         const lower = text.toLowerCase().trim();
+        if (!lower) return undefined;
         if (lower.includes('เรือ') || lower === 'ship' || lower === 'sea') return 'SHIP';
         return 'TRUCK';
     };
 
-    const parseNumber = (text: string): number => {
-        if (!text) return 0;
+    const parseNumber = (text: string | undefined): number | undefined => {
+        if (!text) return undefined;
         // Remove commas and parse
         const cleaned = text.replace(/,/g, '').trim();
+        if (cleaned === '' || cleaned === '-') return undefined;
         const match = cleaned.match(/[\d.]+/);
-        return match ? parseFloat(match[0]) : 0;
+        if (!match) return undefined;
+        const val = parseFloat(match[0]);
+        // Treat 0 as undefined to prevent overwriting with 0 (interpret 0 as empty/no-data)
+        return val === 0 ? undefined : val;
     };
 
     const handleParse = () => {
@@ -79,8 +85,15 @@ export function BulkImportModal({ onClose, onSuccess }: BulkImportModalProps) {
                 const line = lines[i].trim();
                 if (!line) continue;
 
-                // Split by tab (from Excel) or multiple spaces
-                const cols = line.split(/\t| {2,}/).map(c => c.trim()).filter(c => c !== '');
+                // Split by tab (Excel) or fallback to spaces
+                let cols: string[];
+                if (line.includes('\t')) {
+                    // Excel format: Strict tab splitting to preserve empty columns
+                    cols = line.split('\t').map(c => c.trim());
+                } else {
+                    // Fallback: Split by multiple spaces and filter (Legacy behavior)
+                    cols = line.split(/ {2,}/).map(c => c.trim()).filter(c => c !== '');
+                }
 
                 if (cols.length < 3) continue;
 
@@ -91,38 +104,49 @@ export function BulkImportModal({ onClose, onSuccess }: BulkImportModalProps) {
                 const custIdx = cols.findIndex(c => c.startsWith('PR-'));
 
                 let customerCode = '';
-                let sellBase = 0;
+                let sellBase: number | undefined;
                 let productTypeRaw = '';
                 let dateIn = '';
-                let weightKg = 0;
-                let cbm = 0;
+                let weightKg: number | undefined;
+                let cbm: number | undefined;
 
                 if (custIdx !== -1) {
                     customerCode = cols[custIdx];
                     // Map relative to customer code
                     // Correct offsets based on user's two common formats (11-col and 12-col)
-                    sellBase = parseNumber(cols[custIdx + 1] || '0');
+                    sellBase = parseNumber(cols[custIdx + 1]);
                     productTypeRaw = cols[custIdx + 2] || '';
                     dateIn = cols[custIdx + 3] || '';
 
-                    // Standard logic for KG/CBM usually at fixed offsets from pivot or end
                     // In both 11 and 12-col, KG is +7 and CBM is +9 from pivot
-                    weightKg = parseNumber(cols[custIdx + 7] || '0');
-                    cbm = parseNumber(cols[custIdx + 9] || '0');
+                    weightKg = parseNumber(cols[custIdx + 7]);
+                    cbm = parseNumber(cols[custIdx + 9]);
                 } else {
                     // Fallback to legacy static mapping if no PR- found
-                    customerCode = cols[2] || '';
-                    sellBase = parseNumber(cols[3] || '0');
-                    productTypeRaw = cols[4] || '';
-                    dateIn = cols[5] || '';
-                    weightKg = parseNumber(cols[9] || '0');
-                    cbm = parseNumber(cols[11] || '0');
+                    if (line.includes('\t')) {
+                        // Strict mapping for tabs (assuming 0-based fixed indices if PR- not found is risky but standard fallback)
+                        customerCode = cols[2] || '';
+                        sellBase = parseNumber(cols[3]);
+                        productTypeRaw = cols[4] || '';
+                        dateIn = cols[5] || '';
+                        weightKg = parseNumber(cols[9]);
+                        cbm = parseNumber(cols[11]);
+                    } else {
+                        // Loose mapping for spaces (legacy)
+                        customerCode = cols[2] || '';
+                        sellBase = parseNumber(cols[3]);
+                        productTypeRaw = cols[4] || '';
+                        dateIn = cols[5] || '';
+                        weightKg = parseNumber(cols[9]);
+                        cbm = parseNumber(cols[11]);
+                    }
                 }
 
                 // Extra safety for price (if another col has specifically "(ราคา")
                 const explicitPriceCol = cols.find(c => c.includes('(ราคา'));
                 if (explicitPriceCol) {
-                    sellBase = parseNumber(explicitPriceCol);
+                    const extracted = parseNumber(explicitPriceCol);
+                    if (extracted !== undefined) sellBase = extracted;
                 }
 
                 const row: ParsedRow = {
@@ -130,7 +154,7 @@ export function BulkImportModal({ onClose, onSuccess }: BulkImportModalProps) {
                     customerCode,
                     sellBase,
                     productType: parseProductType(productTypeRaw),
-                    transport: 'TRUCK',
+                    transport: undefined, // Default undefined, detects below
                     dateIn,
                     weightKg,
                     cbm,
@@ -139,8 +163,21 @@ export function BulkImportModal({ onClose, onSuccess }: BulkImportModalProps) {
 
                 // Detect transport
                 const allText = line.toLowerCase();
+                const transportStr = cols.find(c => c.toLowerCase().includes('truck') || c.toLowerCase().includes('ship') || c.includes('เรือ') || c.includes('รถ')) || '';
+
+                // If specific column logic fails, try line-based but prefer existing logic in parser
+                // Actually `parseTransport` handles empty string check now. 
+                // But previously we scanned `allText`. 
+                // Let's refine: If we have a transport column?
+                // The legacy logic scanned `line`. Let's keep that but return undefined if ambiguous?
+                // No, sticking to "If line contains keyword" is safer for transport as it's often not in a specific column in legacy formats.
+                // BUT, if we want to support "Keep Old", we must be careful.
+                // If the user pastes a line WITHOUT transport keywords, does it mean "Keep Old" or "Truck"?
+                // Safest for "Keep Old" is: if no keyword found, sending undefined.
+
                 if (allText.includes('รถ') || allText.includes('truck')) row.transport = 'TRUCK';
-                if (allText.includes('เรือ') || allText.includes('ship') || allText.includes('ทะเล')) row.transport = 'SHIP';
+                else if (allText.includes('เรือ') || allText.includes('ship') || allText.includes('ทะเล')) row.transport = 'SHIP';
+                else row.transport = undefined;
 
                 if (row.trackingNo && row.trackingNo.length > 3) {
                     rows.push(row);
@@ -317,21 +354,21 @@ export function BulkImportModal({ onClose, onSuccess }: BulkImportModalProps) {
                                                     <td className="px-3 py-2 text-slate-400">{i + 1}</td>
                                                     <td className="px-3 py-2 font-medium text-slate-900">{row.trackingNo}</td>
                                                     <td className="px-3 py-2 text-slate-600">{row.customerCode}</td>
-                                                    <td className="px-3 py-2 text-right text-slate-900">{row.sellBase.toLocaleString()}</td>
+                                                    <td className="px-3 py-2 text-right text-slate-900">{row.sellBase?.toLocaleString() ?? '-'}</td>
                                                     <td className="px-3 py-2 text-center">
                                                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${row.productType === 'SPECIAL' ? 'bg-purple-100 text-purple-700' :
                                                             row.productType === 'TISI' ? 'bg-blue-100 text-blue-700' :
                                                                 row.productType === 'FDA' ? 'bg-green-100 text-green-700' :
                                                                     'bg-slate-100 text-slate-600'
                                                             }`}>
-                                                            {row.productType}
+                                                            {row.productType || '-'}
                                                         </span>
                                                     </td>
                                                     <td className="px-3 py-2 text-center text-slate-600">
-                                                        {row.transport === 'TRUCK' ? 'ทางบก' : 'ทางเรือ'}
+                                                        {row.transport === 'TRUCK' ? 'ทางบก' : row.transport === 'SHIP' ? 'ทางเรือ' : '-'}
                                                     </td>
-                                                    <td className="px-3 py-2 text-right text-slate-600">{row.weightKg}</td>
-                                                    <td className="px-3 py-2 text-right text-slate-600">{row.cbm}</td>
+                                                    <td className="px-3 py-2 text-right text-slate-600">{row.weightKg ?? '-'}</td>
+                                                    <td className="px-3 py-2 text-right text-slate-600">{row.cbm ?? '-'}</td>
                                                 </tr>
                                             ))}
                                         </tbody>

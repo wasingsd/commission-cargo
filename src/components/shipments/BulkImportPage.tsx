@@ -22,22 +22,22 @@ import {
 
 interface ParsedRow {
     trackingNo: string;
-    poNo: string;
-    lotNo: string;
     customerCode: string;
-    sellBase: number;
-    sellUnit: 'CBM' | 'KG';
-    productType: 'GENERAL' | 'TISI' | 'FDA' | 'SPECIAL';
-    transport: 'TRUCK' | 'SHIP';
-    dateIn: string;
-    dateOut: string;
-    dateArrived: string;
-    quantity: number;
-    weightKg: number;
-    dimensions: string;
-    cbm: number;
-    status: string;
-    note: string;
+    poNo?: string;
+    lotNo?: string;
+    sellBase?: number;
+    sellUnit?: 'CBM' | 'KG';
+    productType?: 'GENERAL' | 'TISI' | 'FDA' | 'SPECIAL';
+    transport?: 'TRUCK' | 'SHIP';
+    dateIn?: string;
+    dateOut?: string;
+    dateArrived?: string;
+    quantity?: number;
+    weightKg?: number;
+    dimensions?: string;
+    cbm?: number;
+    status?: string;
+    note?: string;
 }
 
 export function BulkImportPage() {
@@ -55,40 +55,60 @@ export function BulkImportPage() {
         errors: { row: number; tracking: string; error: string }[];
     } | null>(null);
 
-    const parseProductType = (text: string): 'GENERAL' | 'TISI' | 'FDA' | 'SPECIAL' => {
-        if (!text) return 'GENERAL';
+    const parseProductType = (text: string): 'GENERAL' | 'TISI' | 'FDA' | 'SPECIAL' | undefined => {
+        if (!text) return undefined;
         const lower = text.toLowerCase().trim();
+        if (!lower || lower === '-') return undefined;
         if (lower.includes('พิเศษ') || lower === 'special') return 'SPECIAL';
         if (lower.includes('มอก') || lower === 'tisi') return 'TISI';
         if (lower.includes('fda') || lower.includes('อาหาร') || lower.includes('ยา') || lower.includes('อย')) return 'FDA';
         return 'GENERAL';
     };
 
-    const parseTransport = (text: string): 'TRUCK' | 'SHIP' => {
-        if (!text) return 'TRUCK';
+    const parseTransport = (text: string): 'TRUCK' | 'SHIP' | undefined => {
+        if (!text) return undefined;
         const lower = text.toLowerCase().trim();
+        if (!lower || lower === '-') return undefined;
         if (lower.includes('เรือ') || lower === 'ship' || lower === 'sea' || lower.includes('ทะเล')) return 'SHIP';
+        if (lower.includes('รถ') || lower === 'truck') return 'TRUCK';
+        return 'TRUCK'; // Default to TRUCK if text exists but matches nothing? Or undefined? 
+        // User says "Lot column specifies Truck or Ship". If it's just a Lot ID like '1234' without keywords, we shouldn't force it?
+        // But legacy behavior might expect 'TRUCK' default. 
+        // Safer: If keyword found -> set. If no keyword -> Undefined (Keep existing).
+        // Let's change strictly:
+        // return undefined; 
+        // However, if the user explicitly puts "Truck" in Lot, we get TRUCK.
+        // If they put "L1234", do they mean Truck?
+        // The previous logic defaulted to TRUCK.
+        // Let's stick to: If empty -> undefined. If text -> Default TRUCK unless Ship detected.
         return 'TRUCK';
     };
 
-    const parseNumber = (value: any): number => {
-        if (value === null || value === undefined || value === '') return 0;
-        if (typeof value === 'number') return value;
+    const parseNumber = (value: any): number | undefined => {
+        if (value === null || value === undefined) return undefined;
+        if (typeof value === 'number') return value === 0 ? undefined : value;
         const str = String(value).replace(/,/g, '').trim();
+        if (!str || str === '-') return undefined;
         const match = str.match(/[\d.]+/);
-        return match ? parseFloat(match[0]) : 0;
+        if (!match) return undefined;
+        const val = parseFloat(match[0]);
+        return val === 0 ? undefined : val;
     };
 
     const parseSellUnit = (text: string): 'CBM' | 'KG' => {
+        // Default CBM is fine for unit, or maybe undefined?
+        // Let's keep existing logic but handle empty?
+        // If we want partial update, we need undefined.
         if (!text) return 'CBM';
         const lower = text.toLowerCase();
         if (lower.includes('kg') || lower.includes('กก')) return 'KG';
         return 'CBM';
     };
 
-    const parseStatus = (text: string): string => {
-        if (!text) return 'PENDING';
+    const parseStatus = (text: string): string | undefined => {
+        if (!text) return undefined;
         const lower = text.toLowerCase().trim();
+        if (!lower || lower === '-') return undefined;
         if (lower.includes('ส่งแล้ว') || lower.includes('delivered')) return 'DELIVERED';
         if (lower.includes('ถึง') || lower.includes('arrived')) return 'ARRIVED';
         if (lower.includes('ออก') || lower.includes('departed')) return 'DEPARTED';
@@ -177,32 +197,28 @@ export function BulkImportPage() {
                 const priceVal = getVal('ราคา', 'ราคาขาย', 'price', 'sell');
                 const priceStr = String(priceVal || '');
 
+                const lotVal = String(getVal('ล๊อต', 'lot', 'ล็อต', 'ขนส่ง', 'transport') || '').trim();
+                const typeVal = String(getVal('ประเภท', 'type', 'สินค้า') || '').trim();
+
                 const row: ParsedRow = {
                     trackingNo,
-                    poNo: String(getVal('po', 'เลข po') || '').trim(),
-                    lotNo: String(getVal('ล๊อต', 'lot', 'ล็อต') || '').trim(),
+                    poNo: String(getVal('po', 'เลข po') || '').trim() || undefined,
+                    lotNo: String(getVal('ล๊อต', 'lot', 'ล็อต') || '').trim() || undefined,
                     customerCode,
                     sellBase: parseNumber(priceVal),
                     sellUnit: parseSellUnit(priceStr),
-                    productType: parseProductType(String(getVal('ประเภท', 'type', 'สินค้า') || '')),
-                    transport: parseTransport(String(getVal('ล๊อต', 'lot', 'ขนส่ง', 'transport') || '')),
-                    dateIn: formatExcelDate(getVal('เข้าโกดัง', 'date in', 'วันเข้า')),
-                    dateOut: formatExcelDate(getVal('ออกโกดัง', 'date out', 'วันออก')),
-                    dateArrived: formatExcelDate(getVal('ถึง', 'arrived', 'ปลายทาง')),
-                    quantity: parseNumber(getVal('จำนวน', 'qty', 'quantity')) || 1,
+                    productType: parseProductType(typeVal),
+                    transport: parseTransport(lotVal), // Use 'Lot' column content for transport
+                    dateIn: formatExcelDate(getVal('เข้าโกดัง', 'date in', 'วันเข้า')) || undefined,
+                    dateOut: formatExcelDate(getVal('ออกโกดัง', 'date out', 'วันออก')) || undefined,
+                    dateArrived: formatExcelDate(getVal('ถึง', 'arrived', 'ปลายทาง')) || undefined,
+                    quantity: parseNumber(getVal('จำนวน', 'qty', 'quantity')),
                     weightKg: parseNumber(getVal('kg', 'กก', 'น้ำหนัก', 'weight')),
-                    dimensions: String(getVal('ขนาด', 'size', 'dimension') || '').trim(),
+                    dimensions: String(getVal('ขนาด', 'size', 'dimension') || '').trim() || undefined,
                     cbm: parseNumber(getVal('cbm', 'คิว')),
                     status: parseStatus(String(getVal('สถานะ', 'status') || '')),
-                    note: String(getVal('หมายเหตุ', 'note', 'remark') || '').trim(),
+                    note: String(getVal('หมายเหตุ', 'note', 'remark') || '').trim() || undefined,
                 };
-
-                // Detect transport from lotNo
-                if (row.lotNo.toLowerCase().includes('รถ') || row.lotNo.toLowerCase().includes('truck')) {
-                    row.transport = 'TRUCK';
-                } else if (row.lotNo.toLowerCase().includes('เรือ') || row.lotNo.toLowerCase().includes('ship')) {
-                    row.transport = 'SHIP';
-                }
 
                 rows.push(row);
             }
@@ -603,7 +619,7 @@ export function BulkImportPage() {
                                             <th className="px-5 py-4 font-bold text-slate-500 uppercase tracking-widest text-[10px]">เลขพัสดุ</th>
                                             <th className="px-5 py-4 font-bold text-slate-500 uppercase tracking-widest text-[10px]">ลูกค้า</th>
                                             <th className="px-5 py-4 font-bold text-slate-500 uppercase tracking-widest text-[10px]">ล๊อต</th>
-                                            <th className="px-5 py-4 font-bold text-slate-500 uppercase tracking-widest text-[10px] text-center">ประเภทรถ/เรือ</th>
+                                            <th className="px-5 py-4 font-bold text-slate-500 uppercase tracking-widest text-[10px] text-center">ประเภท / ขนส่ง</th>
                                             <th className="px-5 py-4 font-bold text-slate-500 uppercase tracking-widest text-[10px]">ราคาขาย</th>
                                             <th className="px-5 py-4 font-bold text-slate-500 uppercase tracking-widest text-[10px] text-center">วันที่เข้า</th>
                                             <th className="px-5 py-4 font-bold text-slate-500 uppercase tracking-widest text-[10px] text-center">วันที่ออก</th>
@@ -621,30 +637,42 @@ export function BulkImportPage() {
                                                 <td className="px-5 py-3">
                                                     <span className="bg-slate-100 px-2 py-0.5 rounded text-[11px] font-bold text-slate-600">{row.customerCode}</span>
                                                 </td>
-                                                <td className="px-5 py-3 text-slate-600 font-medium">{row.lotNo}</td>
+                                                <td className="px-5 py-3 text-slate-600 font-medium">{row.lotNo || '-'}</td>
                                                 <td className="px-5 py-3 text-center">
-                                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold ${row.transport === 'TRUCK' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'
-                                                        }`}>
-                                                        {row.transport === 'TRUCK' ? 'รถ' : 'เรือ'}
-                                                    </span>
+                                                    <div className="flex flex-col items-center gap-1">
+                                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold ${!row.transport ? 'bg-slate-100 text-slate-400' :
+                                                                row.transport === 'TRUCK' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'
+                                                            }`}>
+                                                            {!row.transport ? '-' : row.transport === 'TRUCK' ? 'รถ' : 'เรือ'}
+                                                        </span>
+                                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold ${!row.productType ? 'bg-slate-100 text-slate-400' :
+                                                                row.productType === 'SPECIAL' ? 'bg-purple-100 text-purple-700' :
+                                                                    row.productType === 'TISI' ? 'bg-cyan-100 text-cyan-700' :
+                                                                        row.productType === 'FDA' ? 'bg-emerald-100 text-emerald-700' :
+                                                                            'bg-slate-100 text-slate-600'
+                                                            }`}>
+                                                            {row.productType ? productTypeLabel(row.productType) : '-'}
+                                                        </span>
+                                                    </div>
                                                 </td>
                                                 <td className="px-5 py-3 text-right">
                                                     <div className="font-bold text-slate-900">
-                                                        {row.sellBase.toLocaleString()}
+                                                        {row.sellBase?.toLocaleString() ?? '-'}
                                                         <span className="text-[10px] text-slate-400 ml-1">{row.sellUnit}</span>
                                                     </div>
                                                 </td>
                                                 <td className="px-5 py-3 text-center text-[11px] text-slate-500 font-mono">{row.dateIn || '-'}</td>
                                                 <td className="px-5 py-3 text-center text-[11px] text-slate-500 font-mono">{row.dateOut || '-'}</td>
                                                 <td className="px-5 py-3 text-center text-[11px] text-slate-500 font-mono">{row.dateArrived || '-'}</td>
-                                                <td className="px-5 py-3 text-right text-slate-600 font-mono">{row.weightKg.toFixed(2)}</td>
-                                                <td className="px-5 py-3 text-right text-slate-600 font-mono">{row.cbm.toFixed(4)}</td>
+                                                <td className="px-5 py-3 text-right text-slate-600 font-mono">{row.weightKg?.toFixed(2) ?? '-'}</td>
+                                                <td className="px-5 py-3 text-right text-slate-600 font-mono">{row.cbm?.toFixed(4) ?? '-'}</td>
                                                 <td className="px-5 py-3 text-center">
-                                                    <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold ${row.status === 'DELIVERED' ? 'bg-green-100 text-green-700' :
-                                                        row.status === 'ARRIVED' ? 'bg-blue-100 text-blue-700' :
-                                                            'bg-amber-100 text-amber-700'
+                                                    <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold ${!row.status ? 'bg-slate-100 text-slate-400' :
+                                                        row.status === 'DELIVERED' ? 'bg-green-100 text-green-700' :
+                                                            row.status === 'ARRIVED' ? 'bg-blue-100 text-blue-700' :
+                                                                'bg-amber-100 text-amber-700'
                                                         }`}>
-                                                        {statusLabel(row.status)}
+                                                        {row.status ? statusLabel(row.status) : '-'}
                                                     </span>
                                                 </td>
                                             </tr>
