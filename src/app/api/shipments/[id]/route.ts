@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { firestore, Shipment } from '@/lib/firestore';
 import { calculateFull } from '@/lib/calc';
 import { parseTracking } from '@/lib/tracking';
+import { FieldValue } from 'firebase-admin/firestore';
 
 export async function GET(
     request: NextRequest,
@@ -65,8 +66,61 @@ export async function PATCH(
             updateData.dateIn = new Date(body.dateIn);
             updateData.monthKey = (body.dateIn as string).substring(0, 7);
         }
-        if (body.customerId) updateData.customerId = body.customerId;
-        if (body.salespersonId !== undefined) updateData.salespersonId = body.salespersonId || undefined;
+
+        // Handle Customer Update via Code or ID
+        let newCustomerId: string | undefined = undefined;
+        if (body.customerCode) {
+            const customer = await firestore.customers.findByCode(body.customerCode);
+            if (customer) {
+                updateData.customerId = customer.id;
+                newCustomerId = customer.id;
+            }
+        } else if (body.customerId) {
+            updateData.customerId = body.customerId;
+            newCustomerId = body.customerId;
+        }
+
+        // Handle Salesperson Update
+        // Logic:
+        // 1. If explicit salespersonId provided (string) -> Use it
+        // 2. If explicit NULL provided ("Auto") -> Use customer's default
+        // 3. If undefined (not provided) -> Keep existing UNLESS customer changed, then use new customer's default
+
+        let shouldUpdateSalesperson = false;
+        // Check if salespersonId is in the body (even if null)
+        if (body.salespersonId !== undefined) {
+            shouldUpdateSalesperson = true;
+        } else if (newCustomerId && newCustomerId !== current.customerId) {
+            // Customer changed but no salesperson provided -> Force re-eval "Auto"
+            shouldUpdateSalesperson = true;
+        }
+
+        if (shouldUpdateSalesperson) {
+            // If explicit ID provided (and not null/empty), use it
+            if (body.salespersonId) {
+                updateData.salespersonId = body.salespersonId;
+            } else {
+                // "Auto" mode (null passed or customer changed)
+                // Determine the target customer ID to fetch defaults from
+                const targetCustomerId = newCustomerId || current.customerId;
+                let targetSalesId = undefined;
+
+                if (targetCustomerId) {
+                    const customer = await firestore.customers.findById(targetCustomerId);
+                    if (customer?.assignedSalespersonId) {
+                        targetSalesId = customer.assignedSalespersonId;
+                    }
+                }
+
+                if (targetSalesId) {
+                    updateData.salespersonId = targetSalesId;
+                } else {
+                    // Use FieldValue.delete() to remove the field
+                    (updateData as any).salespersonId = FieldValue.delete();
+                }
+            }
+        }
+
         if (body.trackingNo) {
             updateData.trackingNo = body.trackingNo;
             const { base, suffix } = parseTracking(body.trackingNo);

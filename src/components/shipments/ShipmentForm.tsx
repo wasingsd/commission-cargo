@@ -169,7 +169,7 @@ export function ShipmentForm({ onClose, onSuccess, initialData }: ShipmentFormPr
                     cbm: parseFloat(formData.cbm) || 0,
                     sellBase: parseFloat(formData.sellBase) || 0,
                     costManual: parseFloat(formData.costManual) || 0,
-                    salespersonId: formData.salespersonId || undefined,
+                    salespersonId: formData.salespersonId || null,
                 }),
             });
 

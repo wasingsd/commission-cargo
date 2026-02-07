@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import {
     Search,
@@ -81,24 +82,37 @@ export function ShipmentList() {
     });
 
     // Dropdown & Edit State
-    const [activeDropdownId, setActiveDropdownId] = useState<string | null>(null);
+    const [dropdownState, setDropdownState] = useState<{
+        isOpen: boolean;
+        item: Shipment | null;
+        position: { top: number; right: number };
+    }>({ isOpen: false, item: null, position: { top: 0, right: 0 } });
+
     const [editItem, setEditItem] = useState<Shipment | undefined>(undefined);
 
-    // Close dropdown when clicking outside
+    // Close dropdown when clicking outside or scrolling
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
-            if (activeDropdownId && !(event.target as Element).closest('.action-menu')) {
-                setActiveDropdownId(null);
+            if (dropdownState.isOpen && !(event.target as Element).closest('.action-menu-dropdown')) {
+                setDropdownState(prev => ({ ...prev, isOpen: false }));
             }
         };
+        const handleScroll = () => {
+            if (dropdownState.isOpen) setDropdownState(prev => ({ ...prev, isOpen: false }));
+        };
+
+        window.addEventListener('scroll', handleScroll, true);
         document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [activeDropdownId]);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+            window.removeEventListener('scroll', handleScroll, true);
+        };
+    }, [dropdownState.isOpen]);
 
     const handleEdit = (item: Shipment) => {
         setEditItem(item);
         setShowAddForm(true);
-        setActiveDropdownId(null);
+        setDropdownState(prev => ({ ...prev, isOpen: false }));
     };
 
     const handleDelete = async (e: React.MouseEvent, id: string, trackingNo: string) => {
@@ -110,7 +124,7 @@ export function ShipmentList() {
             isDestructive: true,
             onConfirm: async () => {
                 setConfirmConfig(prev => ({ ...prev, isOpen: false }));
-                setActiveDropdownId(null);
+                setDropdownState(prev => ({ ...prev, isOpen: false }));
                 setLoading(true);
                 try {
                     const res = await fetch(`/api/shipments/${id}`, { method: 'DELETE' });
@@ -581,36 +595,20 @@ export function ShipmentList() {
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        setActiveDropdownId(activeDropdownId === item.id ? null : item.id);
+                                                        const rect = e.currentTarget.getBoundingClientRect();
+                                                        setDropdownState({
+                                                            isOpen: true,
+                                                            item: item,
+                                                            position: {
+                                                                top: rect.bottom + 6,
+                                                                right: window.innerWidth - rect.right
+                                                            }
+                                                        });
                                                     }}
-                                                    className={`p-2 rounded-lg transition-colors ${activeDropdownId === item.id ? 'bg-slate-100 text-slate-900' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'}`}
+                                                    className={`p-2 rounded-lg transition-colors ${dropdownState.isOpen && dropdownState.item?.id === item.id ? 'bg-slate-100 text-slate-900' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'}`}
                                                 >
                                                     <MoreVertical className="w-4 h-4" />
                                                 </button>
-
-                                                {/* Dropdown Menu */}
-                                                {activeDropdownId === item.id && (
-                                                    <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 origin-top-right">
-                                                        <div className="p-1.5 space-y-0.5">
-                                                            <button
-                                                                onClick={() => handleEdit(item)}
-                                                                className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-colors"
-                                                            >
-                                                                <Edit2 className="w-4 h-4" />
-                                                                แก้ไขข้อมูล
-                                                            </button>
-                                                            <div className="h-px bg-slate-100 my-1"></div>
-                                                            <button
-                                                                onClick={(e) => handleDelete(e, item.id, item.trackingNo)}
-
-                                                                className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
-                                                            >
-                                                                <Trash2 className="w-4 h-4" />
-                                                                ลบรายการ
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                )}
                                             </div>
                                         </td>
                                     </tr>
@@ -656,8 +654,8 @@ export function ShipmentList() {
                                         key={p}
                                         onClick={() => setPage(p)}
                                         className={`w-8 h-8 flex items-center justify-center text-xs font-bold rounded-lg transition-all ${page === p
-                                                ? 'bg-slate-900 text-white shadow-lg shadow-slate-900/20'
-                                                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                                            ? 'bg-slate-900 text-white shadow-lg shadow-slate-900/20'
+                                            : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
                                             }`}
                                     >
                                         {p}
@@ -793,6 +791,36 @@ export function ShipmentList() {
                 message={confirmConfig.message}
                 isDestructive={confirmConfig.isDestructive}
             />
+
+            {/* Fixed Dropdown Menu - Moved to Portal to avoid clipping/transform issues */}
+            {dropdownState.isOpen && dropdownState.item && typeof document !== 'undefined' && createPortal(
+                <div
+                    className="action-menu-dropdown fixed w-48 bg-white rounded-xl shadow-xl border border-slate-100 z-[9999] overflow-hidden animate-in fade-in zoom-in-95 duration-200 origin-top-right"
+                    style={{
+                        top: dropdownState.position.top,
+                        right: dropdownState.position.right
+                    }}
+                >
+                    <div className="p-1.5 space-y-0.5">
+                        <button
+                            onClick={() => handleEdit(dropdownState.item!)}
+                            className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-colors"
+                        >
+                            <Edit2 className="w-4 h-4" />
+                            แก้ไขข้อมูล
+                        </button>
+                        <div className="h-px bg-slate-100 my-1"></div>
+                        <button
+                            onClick={(e) => handleDelete(e, dropdownState.item!.id, dropdownState.item!.trackingNo)}
+                            className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                        >
+                            <Trash2 className="w-4 h-4" />
+                            ลบรายการ
+                        </button>
+                    </div>
+                </div>,
+                document.body
+            )}
         </div>
     );
 }
