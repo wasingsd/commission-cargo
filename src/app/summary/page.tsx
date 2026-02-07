@@ -57,23 +57,37 @@ const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'
 export default function SummaryPage() {
     const [data, setData] = useState<DashboardData | null>(null);
     const [loading, setLoading] = useState(true);
+    const [startDate, setStartDate] = useState<string>('');
+    const [endDate, setEndDate] = useState<string>('');
+
+    const fetchData = async () => {
+        setLoading(true);
+        try {
+            const params = new URLSearchParams();
+            params.set('groupBy', 'dashboard');
+            if (startDate) params.set('startDate', startDate);
+            if (endDate) params.set('endDate', endDate);
+
+            const res = await fetch(`/api/reports/summary?${params.toString()}`);
+            const json = await res.json();
+            if (json.success) {
+                setData(json.data);
+            }
+        } catch (error) {
+            console.error('Failed to fetch dashboard data:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const res = await fetch('/api/reports/summary?groupBy=dashboard');
-                const json = await res.json();
-                if (json.success) {
-                    setData(json.data);
-                }
-            } catch (error) {
-                console.error('Failed to fetch dashboard data:', error);
-            } finally {
-                setLoading(false);
-            }
-        };
         fetchData();
-    }, []);
+    }, []); // Initial load only, user must click filter to update if dates change? Or auto update?
+    // Let's make it so user clicks "Filter" or upon changing inputs?
+    // User requested "Filter by date", usually implies a button or reactive inputs.
+    // Let's use a button for explicit action or just reactive effects.
+    // For now, I'll adding a Search/Filter button is better for UX to avoid too many requests.
+    // But I'll leave useEffect as empty dependency array for initial load.
 
     const formatCurrency = (val: number) => {
         return new Intl.NumberFormat('th-TH', {
@@ -115,13 +129,27 @@ export default function SummaryPage() {
                     </div>
 
                     <div className="flex items-center gap-3">
-                        <div className="bg-white border border-slate-200 rounded-xl p-1.5 flex items-center gap-2 shadow-sm">
-                            <div className="pl-3 text-[11px] font-bold text-slate-400 border-r border-slate-200 pr-3">เลือกช่วงเวลา</div>
-                            <select className="bg-transparent border-none py-2 px-4 text-xs font-bold text-slate-600 focus:ring-0 cursor-pointer outline-none">
-                                <option>ทั้งหมด</option>
-                                <option>ปี 2026</option>
-                                <option>ปี 2025</option>
-                            </select>
+                        <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl p-1.5 shadow-sm">
+                            <div className="pl-3 text-[11px] font-bold text-slate-400 border-r border-slate-200 pr-3">วันที่เข้าโกดัง</div>
+                            <input
+                                type="date"
+                                value={startDate}
+                                onChange={(e) => setStartDate(e.target.value)}
+                                className="bg-transparent border-none py-2 px-2 text-xs font-bold text-slate-600 focus:ring-0 cursor-pointer outline-none"
+                            />
+                            <span className="text-slate-300">-</span>
+                            <input
+                                type="date"
+                                value={endDate}
+                                onChange={(e) => setEndDate(e.target.value)}
+                                className="bg-transparent border-none py-2 px-2 text-xs font-bold text-slate-600 focus:ring-0 cursor-pointer outline-none"
+                            />
+                            <button
+                                onClick={fetchData}
+                                className="p-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+                            >
+                                <Calendar className="w-4 h-4" />
+                            </button>
                         </div>
                         <button className="flex items-center gap-2 px-8 py-3.5 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-all shadow-xl shadow-slate-900/10 active:scale-95 group">
                             <Download className="w-4 h-4" />

@@ -166,7 +166,11 @@ function docToData<T>(doc: QueryDocumentSnapshot<DocumentData>): T {
 // Firestore Service
 // ============================================================
 
-export const firestore = {
+// ============================================================
+// Firestore Service
+// ============================================================
+
+const realFirestore = {
     // Get collection reference
     collection(name: string): CollectionReference {
         return getDb().collection(name);
@@ -561,6 +565,8 @@ export const firestore = {
             monthKey?: string;
             customerId?: string;
             salespersonId?: string;
+            startDate?: Date;
+            endDate?: Date;
         }): Promise<Shipment[]> {
             let query: Query = getDb().collection(Collections.SHIPMENTS);
 
@@ -573,8 +579,21 @@ export const firestore = {
             if (filters?.salespersonId) {
                 query = query.where('salespersonId', '==', filters.salespersonId);
             }
+            if (filters?.startDate) {
+                query = query.where('dateIn', '>=', filters.startDate);
+            }
+            if (filters?.endDate) {
+                query = query.where('dateIn', '<=', filters.endDate);
+            }
 
-            const snapshot = await query.orderBy('createdAt', 'desc').get();
+            // If date filtering is active, order by dateIn to avoid index issues
+            if (filters?.startDate || filters?.endDate) {
+                query = query.orderBy('dateIn', 'desc');
+            } else {
+                query = query.orderBy('createdAt', 'desc');
+            }
+
+            const snapshot = await query.get();
             return snapshot.docs.map((doc) => docToData<Shipment>(doc));
         },
 
@@ -600,13 +619,13 @@ export const firestore = {
 
             // Populate relations
             if (shipment.customerId) {
-                shipment.customer = await firestore.customers.findById(shipment.customerId) || undefined;
+                shipment.customer = await realFirestore.customers.findById(shipment.customerId) || undefined;
             }
             if (shipment.salespersonId) {
-                shipment.salesperson = await firestore.salespersons.findById(shipment.salespersonId) || undefined;
+                shipment.salesperson = await realFirestore.salespersons.findById(shipment.salespersonId) || undefined;
             }
             if (shipment.rateCardUsedId) {
-                shipment.rateCardUsed = await firestore.rateCards.findById(shipment.rateCardUsedId) || undefined;
+                shipment.rateCardUsed = await realFirestore.rateCards.findById(shipment.rateCardUsedId) || undefined;
             }
 
             return shipment;
@@ -676,9 +695,9 @@ export const firestore = {
         },
     },
 
-    // ============================================================
-    // Audit Logs
-    // ============================================================
+    // ============================================================ 
+    // Audit Logs 
+    // ============================================================ 
     auditLogs: {
         async findAll(filters?: {
             entityType?: string;
@@ -718,4 +737,16 @@ export const firestore = {
     },
 };
 
-export default firestore;
+// MOCK DB SWITCH 
+import { mockFirestore } from './mock-db';
+
+const useMock = process.env.NEXT_PUBLIC_USE_MOCK_DB === 'true';
+
+if (useMock) {
+    console.warn('⚠️ USING MOCK DATABASE (mock-db.json) ⚠️');
+}
+
+const exportedFirestore = useMock ? (mockFirestore as any) : realFirestore;
+
+export { exportedFirestore as firestore };
+export default exportedFirestore;

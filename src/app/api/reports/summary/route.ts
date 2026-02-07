@@ -14,16 +14,23 @@ export async function GET(request: NextRequest) {
         const customerId = searchParams.get('customerId');
         const salespersonId = searchParams.get('salespersonId');
 
+        const startDateStr = searchParams.get('startDate');
+        const endDateStr = searchParams.get('endDate');
+
         // Build filters
         const filters: {
             monthKey?: string;
             customerId?: string;
             salespersonId?: string;
+            startDate?: Date;
+            endDate?: Date;
         } = {};
 
         if (month) filters.monthKey = month;
         if (customerId) filters.customerId = customerId;
         if (salespersonId) filters.salespersonId = salespersonId;
+        if (startDateStr) filters.startDate = new Date(startDateStr);
+        if (endDateStr) filters.endDate = new Date(endDateStr);
 
         // Get all shipments matching the filter
         const shipments = await firestore.shipments.findAll(filters);

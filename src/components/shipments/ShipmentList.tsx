@@ -60,7 +60,9 @@ export function ShipmentList() {
     const [filters, setFilters] = useState({
         search: '',
         month: '',
-        status: ''
+        status: '',
+        startDate: '',
+        endDate: ''
     });
 
     // Pagination State
@@ -246,6 +248,55 @@ export function ShipmentList() {
     };
 
     const [isRecalculating, setIsRecalculating] = useState(false);
+
+    // Inline Price Edit State
+    const [editingPriceId, setEditingPriceId] = useState<string | null>(null);
+    const [tempPrice, setTempPrice] = useState<string>('');
+    const [isSavingPrice, setIsSavingPrice] = useState(false);
+
+    const startEditingPrice = (item: Shipment) => {
+        setEditingPriceId(item.id);
+        setTempPrice(item.sellBase.toString());
+    };
+
+    const handleSavePrice = async (id: string) => {
+        if (!editingPriceId) return;
+
+        // Optimistic check: if no change, just close
+        const originalItem = shipments.find(s => s.id === id);
+        const newPrice = parseFloat(tempPrice);
+
+        if (originalItem && Math.abs(originalItem.sellBase - newPrice) < 0.01) {
+            setEditingPriceId(null);
+            return;
+        }
+
+        setIsSavingPrice(true);
+        try {
+            const res = await fetch(`/api/shipments/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sellBase: newPrice })
+            });
+
+            const json = await res.json();
+            if (res.ok && json.success) {
+                // Update local state with returned data (which includes recalculated fields)
+                setShipments(prev => prev.map(item =>
+                    item.id === id ? json.data : item
+                ));
+            } else {
+                alert(`บันทึกราคาไม่สำเร็จ: ${json.error}`);
+            }
+        } catch (error) {
+            console.error('Failed to update price:', error);
+            alert('เกิดข้อผิดพลาดในการบันทึกราคา');
+        } finally {
+            setIsSavingPrice(false);
+            setEditingPriceId(null);
+        }
+    };
+
     const handleRecalculateAll = async () => {
         if (typeof window === 'undefined') return;
 
@@ -301,6 +352,8 @@ export function ShipmentList() {
             if (filters.search) params.append('search', filters.search);
             if (filters.month) params.append('month', filters.month);
             if (filters.status) params.append('status', filters.status);
+            if (filters.startDate) params.append('startDate', filters.startDate);
+            if (filters.endDate) params.append('endDate', filters.endDate);
             params.append('page', page.toString());
             params.append('limit', pageSize.toString());
 
@@ -456,6 +509,23 @@ export function ShipmentList() {
                         <option value="2026-02">กุมภาพันธ์ 2026</option>
                         <option value="2025-12">ธันวาคม 2025</option>
                     </select>
+
+                    <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl p-1.5 px-3">
+                        <span className="text-[11px] font-bold text-slate-400 whitespace-nowrap">วันที่เข้า</span>
+                        <input
+                            type="date"
+                            value={filters.startDate}
+                            onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
+                            className="bg-transparent border-slate-200 text-xs font-medium focus:ring-0 outline-none w-28"
+                        />
+                        <span className="text-slate-300">-</span>
+                        <input
+                            type="date"
+                            value={filters.endDate}
+                            onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
+                            className="bg-transparent border-slate-200 text-xs font-medium focus:ring-0 outline-none w-28"
+                        />
+                    </div>
                     <button className="p-3 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all">
                         <Filter className="w-5 h-5" />
                     </button>
@@ -557,9 +627,33 @@ export function ShipmentList() {
                                             </div>
                                         </td>
                                         <td className="px-6 py-6 text-right">
-                                            <div className="flex flex-col">
-                                                <span className="text-sm font-bold text-slate-900">{formatCurrency(item.sellBase)}</span>
-                                                <span className="text-[11px] font-semibold text-slate-400">ทุน: {formatCurrency(item.costFinal)}</span>
+                                            <div className="flex flex-col items-end">
+                                                {editingPriceId === item.id ? (
+                                                    <input
+                                                        type="number"
+                                                        autoFocus
+                                                        value={tempPrice}
+                                                        onChange={(e) => setTempPrice(e.target.value)}
+                                                        onBlur={() => handleSavePrice(item.id)}
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter') e.currentTarget.blur();
+                                                            if (e.key === 'Escape') setEditingPriceId(null);
+                                                        }}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        disabled={isSavingPrice}
+                                                        className="w-28 text-right px-2 py-1 text-sm font-bold border-2 border-blue-500 rounded-lg bg-white shadow-lg outline-none focus:ring-4 focus:ring-blue-500/20 transition-all z-10"
+                                                    />
+                                                ) : (
+                                                    <div
+                                                        onClick={(e) => { e.stopPropagation(); startEditingPrice(item); }}
+                                                        className="cursor-pointer hover:bg-slate-100 rounded-lg px-2 -mr-2 py-0.5 transition-all relative group/edit"
+                                                        title="คลิกเพื่อแก้ไขราคาขาย"
+                                                    >
+                                                        <span className="text-sm font-bold text-slate-900">{formatCurrency(item.sellBase)}</span>
+                                                        <Edit2 className="w-3 h-3 text-slate-400 absolute right-full top-1/2 -translate-y-1/2 mr-1 opacity-0 group-hover/edit:opacity-100 transition-opacity" />
+                                                    </div>
+                                                )}
+                                                <span className="text-[11px] font-semibold text-slate-400 mt-1">ทุน: {formatCurrency(item.costFinal)}</span>
                                             </div>
                                         </td>
                                         <td className="px-6 py-6 text-right">
@@ -684,7 +778,7 @@ export function ShipmentList() {
                 </div>
             </div>
 
-            {showAddForm && (
+            {showAddForm && typeof document !== 'undefined' && createPortal(
                 <ShipmentForm
                     initialData={editItem}
                     onClose={() => {
@@ -696,7 +790,8 @@ export function ShipmentList() {
                         setEditItem(undefined);
                         fetchShipments();
                     }}
-                />
+                />,
+                document.body
             )}
 
 

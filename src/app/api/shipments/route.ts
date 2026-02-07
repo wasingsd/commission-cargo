@@ -176,6 +176,8 @@ export async function GET(req: Request) {
     const salesId = searchParams.get('salesId');
     const status = searchParams.get('status');
     const search = searchParams.get('search');
+    const startDateStr = searchParams.get('startDate');
+    const endDateStr = searchParams.get('endDate');
 
     // Pagination params
     const page = parseInt(searchParams.get('page') || '1');
@@ -186,12 +188,16 @@ export async function GET(req: Request) {
         customerId?: string;
         salespersonId?: string;
         status?: string;
+        startDate?: Date;
+        endDate?: Date;
     } = {};
 
     if (month) filters.monthKey = month;
     if (customerId) filters.customerId = customerId;
     if (salesId) filters.salespersonId = salesId;
     if (status) filters.status = status;
+    if (startDateStr) filters.startDate = new Date(startDateStr);
+    if (endDateStr) filters.endDate = new Date(endDateStr);
 
     // Role-based filtering
     if (session.user.role === Role.SALE) {

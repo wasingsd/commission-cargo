@@ -207,8 +207,8 @@ export function ShipmentForm({ onClose, onSuccess, initialData }: ShipmentFormPr
     ];
 
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col max-h-[95vh]">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[10000] animate-in fade-in duration-200">
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col max-h-[95vh] relative">
                 {/* Header */}
                 <div className="p-5 border-b border-slate-100 flex justify-between items-center">
                     <div className="flex items-center gap-3">
