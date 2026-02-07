@@ -89,52 +89,66 @@ export async function PATCH(
 
         if (needsRecalc) {
             // Get active rate card or use the one already assigned
-            const rateCard = await firestore.rateCards.findActive();
+            let rateCard: any = null;
+            const currentRateCardId = current.rateCardUsedId;
+
+            // 1. Try to find active rate card first (Standard behavior for edits/recalc)
+            const activeCard = await firestore.rateCards.findActive();
+
+            if (activeCard) {
+                rateCard = await firestore.rateCards.findById(activeCard.id, true);
+            } else if (currentRateCardId) {
+                // 2. Fallback to existing rate card if no active one found
+                rateCard = await firestore.rateCards.findById(currentRateCardId, true);
+            }
+
+            const productType = body.productType || current.productType;
+            const transport = body.transport || current.transport;
+
+            // Find rate row for this product type
+            let rateRow = null;
+            if (rateCard && rateCard.rows) {
+                rateRow = rateCard.rows.find((r: any) => r.productType === productType);
+            }
+
+            let rateCbm = 0;
+            let rateKg = 0;
+
+            if (rateRow) {
+                // Select rates based on transport type
+                if (transport === 'TRUCK') {
+                    rateCbm = Number(rateRow.truckCbm);
+                    rateKg = Number(rateRow.truckKg);
+                } else if (transport === 'SHIP') {
+                    rateCbm = Number(rateRow.shipCbm);
+                    rateKg = Number(rateRow.shipKg);
+                }
+            }
+
+            const calculation = calculateFull(
+                {
+                    cbm: body.cbm !== undefined ? parseFloat(body.cbm) : Number(current.cbm),
+                    weightKg: body.weightKg !== undefined ? parseFloat(body.weightKg) : Number(current.weightKg),
+                    sellBase: body.sellBase !== undefined ? parseFloat(body.sellBase) : Number(current.sellBase),
+                    costMode: (body.costMode || current.costMode) as any,
+                    costManual: body.costManual !== undefined
+                        ? (body.costManual ? parseFloat(body.costManual) : undefined)
+                        : (current.costManual ? Number(current.costManual) : undefined),
+                },
+                {
+                    rateCbm,
+                    rateKg,
+                }
+            );
+
+            updateData.costCbm = calculation.costCbm;
+            updateData.costKg = calculation.costKg;
+            updateData.costFinal = calculation.costFinal;
+            updateData.costRule = calculation.costRule as any;
+            updateData.commissionMethod = calculation.commissionMethod as any;
+            updateData.commissionValue = calculation.commissionValue;
 
             if (rateCard) {
-                const rateCardWithRows = await firestore.rateCards.findById(rateCard.id, true);
-                const productType = body.productType || current.productType;
-                const transport = body.transport || current.transport;
-
-                // Find rate row for this product type
-                const rateRow = rateCardWithRows?.rows?.find(r => r.productType === productType);
-
-                let rateCbm = 0;
-                let rateKg = 0;
-
-                if (rateRow) {
-                    // Select rates based on transport type
-                    if (transport === 'TRUCK') {
-                        rateCbm = Number(rateRow.truckCbm);
-                        rateKg = Number(rateRow.truckKg);
-                    } else if (transport === 'SHIP') {
-                        rateCbm = Number(rateRow.shipCbm);
-                        rateKg = Number(rateRow.shipKg);
-                    }
-                }
-
-                const calculation = calculateFull(
-                    {
-                        cbm: body.cbm !== undefined ? parseFloat(body.cbm) : Number(current.cbm),
-                        weightKg: body.weightKg !== undefined ? parseFloat(body.weightKg) : Number(current.weightKg),
-                        sellBase: body.sellBase !== undefined ? parseFloat(body.sellBase) : Number(current.sellBase),
-                        costMode: (body.costMode || current.costMode) as any,
-                        costManual: body.costManual !== undefined
-                            ? (body.costManual ? parseFloat(body.costManual) : undefined)
-                            : (current.costManual ? Number(current.costManual) : undefined),
-                    },
-                    {
-                        rateCbm,
-                        rateKg,
-                    }
-                );
-
-                updateData.costCbm = calculation.costCbm;
-                updateData.costKg = calculation.costKg;
-                updateData.costFinal = calculation.costFinal;
-                updateData.costRule = calculation.costRule as any;
-                updateData.commissionMethod = calculation.commissionMethod as any;
-                updateData.commissionValue = calculation.commissionValue;
                 updateData.rateCardUsedId = rateCard.id;
             }
         }
