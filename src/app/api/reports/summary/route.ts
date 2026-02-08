@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { firestore } from '@/lib/firestore';
+import { firestore, Shipment } from '@/lib/firestore';
 
 export async function GET(request: NextRequest) {
     try {
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
         if (endDateStr) filters.endDate = new Date(endDateStr);
 
         // Get all shipments matching the filter
-        const shipments = await firestore.shipments.findAll(filters);
+        const shipments: Shipment[] = await firestore.shipments.findAll(filters);
 
         // Populate relations
         const shipmentsWithRelations = await Promise.all(

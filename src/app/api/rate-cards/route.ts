@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { firestore } from '@/lib/firestore';
+import { firestore, RateCard } from '@/lib/firestore';
 import { CreateRateCardSchema } from '@/lib/validators';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -7,7 +7,7 @@ import { ProductType } from '@/lib/enums';
 
 export async function GET() {
     try {
-        const list = await firestore.rateCards.findAll();
+        const list: RateCard[] = await firestore.rateCards.findAll();
 
         // Add row count to each card
         const listWithCount = await Promise.all(

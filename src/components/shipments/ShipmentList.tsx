@@ -797,7 +797,7 @@ export function ShipmentList() {
 
 
             {/* Floating Action Bar */}
-            {selectedIds.length > 0 && (
+            {selectedIds.length > 0 && typeof document !== 'undefined' && createPortal(
                 <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white rounded-2xl shadow-2xl px-6 py-4 flex items-center gap-6 z-[60] animate-in fade-in slide-in-from-bottom-4 duration-300 border border-slate-800/50 backdrop-blur-md">
                     <div className="flex items-center gap-3 border-r border-slate-700 pr-6 mr-6">
                         <div className="w-8 h-8 rounded-full bg-accent-500 flex items-center justify-center text-xs font-bold">
@@ -883,7 +883,8 @@ export function ShipmentList() {
                     >
                         <X className="w-5 h-5 text-slate-500 hover:text-white" />
                     </button>
-                </div>
+                </div>,
+                document.body
             )}
 
             <ConfirmModal

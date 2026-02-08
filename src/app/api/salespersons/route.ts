@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { firestore } from '@/lib/firestore';
+import { firestore, Salesperson } from '@/lib/firestore';
 
 // GET all salespersons
 export async function GET(req: Request) {
@@ -11,7 +11,7 @@ export async function GET(req: Request) {
     }
 
     try {
-        const salespersons = await firestore.salespersons.findAll();
+        const salespersons: Salesperson[] = await firestore.salespersons.findAll();
 
         // Add counts for each salesperson
         const salespersonsWithCounts = await Promise.all(

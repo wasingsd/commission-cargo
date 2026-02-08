@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { firestore } from '@/lib/firestore';
+import { firestore, Shipment, Customer, Salesperson, RateCard } from '@/lib/firestore';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { computeCommission, computeCost } from '@/lib/calc';
@@ -208,7 +208,7 @@ export async function GET(req: Request) {
         filters.salespersonId = salesperson.id;
     }
 
-    const shipments = await firestore.shipments.findAll(filters);
+    const shipments: Shipment[] = await firestore.shipments.findAll(filters);
 
     // 1. Collect all unique IDs needed for population
     const customerIds = Array.from(new Set(shipments.map(s => s.customerId).filter(Boolean))) as string[];
@@ -220,18 +220,18 @@ export async function GET(req: Request) {
         customerIds.length > 0 ? firestore.customers.findByIds(customerIds) : Promise.resolve([]),
         salespersonIds.length > 0 ? firestore.salespersons.findByIds(salespersonIds) : Promise.resolve([]),
         rateCardIds.length > 0 ? firestore.rateCards.findByIds(rateCardIds) : Promise.resolve([]),
-    ]);
+    ]) as [Customer[], Salesperson[], RateCard[]];
 
     // 3. Create maps for O(1) lookup
-    const customerMap = new Map(customers.map((c: any) => [c.id, c]));
-    const salespersonMap = new Map(salespersons.map((s: any) => [s.id, s]));
-    const rateCardMap = new Map(rateCards.map((r: any) => [r.id, r]));
+    const customerMap = new Map(customers.map((c) => [c.id, c]));
+    const salespersonMap = new Map(salespersons.map((s) => [s.id, s]));
+    const rateCardMap = new Map(rateCards.map((r) => [r.id, r]));
 
     // 4. Populate shipments
     const populatedShipments = shipments.map((shipment) => {
         const customer = shipment.customerId ? customerMap.get(shipment.customerId) : null;
         const salesperson = shipment.salespersonId ? salespersonMap.get(shipment.salespersonId) : null;
-        const rateCardUsed = shipment.rateCardUsedId ? rateCardMap.get(shipment.rateCardUsedId) as any : null;
+        const rateCardUsed = shipment.rateCardUsedId ? rateCardMap.get(shipment.rateCardUsedId) : null;
 
         return {
             ...shipment,

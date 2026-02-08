@@ -1,6 +1,7 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { AlertCircle, X, Loader2 } from 'lucide-react';
 
 interface ConfirmModalProps {
@@ -26,10 +27,17 @@ export function ConfirmModal({
     isDestructive = false,
     isLoading = false
 }: ConfirmModalProps) {
-    if (!isOpen) return null;
+    const [mounted, setMounted] = useState(false);
 
-    return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+    useEffect(() => {
+        setMounted(true);
+        return () => setMounted(false);
+    }, []);
+
+    if (!isOpen || !mounted) return null;
+
+    return createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
             <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200">
                 <div className="p-6 text-center">
                     <div className={`w-16 h-16 rounded-full mx-auto flex items-center justify-center mb-4 ${isDestructive ? 'bg-red-50 text-red-500' : 'bg-indigo-50 text-indigo-500'
@@ -38,7 +46,7 @@ export function ConfirmModal({
                     </div>
 
                     <h3 className="text-xl font-bold text-slate-900 mb-2">{title}</h3>
-                    <p className="text-slate-500 text-sm leading-relaxed">
+                    <p className="text-slate-500 text-sm leading-relaxed whitespace-pre-line">
                         {message}
                     </p>
                 </div>
@@ -57,8 +65,8 @@ export function ConfirmModal({
                         onClick={onConfirm}
                         disabled={isLoading}
                         className={`flex-1 py-3 px-4 text-white rounded-xl text-sm font-bold shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 ${isDestructive
-                                ? 'bg-red-500 hover:bg-red-600 shadow-red-500/20'
-                                : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/20'
+                            ? 'bg-red-500 hover:bg-red-600 shadow-red-500/20'
+                            : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/20'
                             }`}
                     >
                         {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -66,6 +74,7 @@ export function ConfirmModal({
                     </button>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }

@@ -12,7 +12,7 @@ export async function GET() {
 
         // Populate salesperson info
         const populated = await Promise.all(
-            customers.map(async (cust) => {
+            (customers as any[]).map(async (cust: any) => {
                 if (cust.assignedSalespersonId) {
                     const sp = await firestore.salespersons.findById(cust.assignedSalespersonId);
                     return { ...cust, salesperson: sp };

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { firestore } from '@/lib/firestore';
+import { firestore, Customer, Shipment, RateCard } from '@/lib/firestore';
 import { computeCost, computeCommission } from '@/lib/calc';
 import { logActivity } from '@/lib/audit';
 import { AuditAction } from '@/lib/enums';
@@ -17,16 +17,16 @@ export async function POST() {
             return NextResponse.json({ error: 'ไม่พบเรทราคาที่เปิดใช้งานอยู่' }, { status: 400 });
         }
 
-        const activeRateCardWithRows = await firestore.rateCards.findById(activeRateCard.id, true);
+        const activeRateCardWithRows: RateCard | null = await firestore.rateCards.findById(activeRateCard.id, true);
         if (!activeRateCardWithRows || !activeRateCardWithRows.rows) {
             return NextResponse.json({ error: 'เรทราคาไม่มีข้อมูลอัตรา' }, { status: 400 });
         }
 
         // Fetch all shipments
-        const allShipments = await firestore.shipments.findAll();
+        const allShipments: Shipment[] = await firestore.shipments.findAll();
 
         // Fetch all customers for salesperson lookup
-        const allCustomers = await firestore.customers.findAll();
+        const allCustomers: Customer[] = await firestore.customers.findAll();
         const customerMap = new Map(allCustomers.map(c => [c.id, c]));
 
         const updates: { id: string; data: any }[] = [];

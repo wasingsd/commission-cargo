@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { firestore } from '@/lib/firestore';
+import { firestore, Shipment } from '@/lib/firestore';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
@@ -8,7 +8,7 @@ export async function GET() {
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     try {
-        const shipments = await firestore.shipments.findAll();
+        const shipments: Shipment[] = await firestore.shipments.findAll();
 
         // Compute stats locally
         let totalComm = 0;

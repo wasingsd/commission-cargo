@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { firestore, Shipment } from '@/lib/firestore';
+import { firestore, Shipment, RateCard } from '@/lib/firestore';
 import { computeCost, computeCommission } from '@/lib/calc';
 import { format } from 'date-fns';
 import { ProductType, Transport, AuditAction } from '@/lib/enums';
@@ -47,7 +47,7 @@ export async function POST(req: Request) {
 
         // Get active rate card
         const activeRateCard = await firestore.rateCards.findActive();
-        let activeRateCardWithRows = null;
+        let activeRateCardWithRows: RateCard | null = null;
         if (activeRateCard) {
             activeRateCardWithRows = await firestore.rateCards.findById(activeRateCard.id, true);
         }
@@ -74,7 +74,7 @@ export async function POST(req: Request) {
                 }
 
                 // Check for existing shipment FIRST to determine merge base
-                const existingShipment = await firestore.shipments.findByTrackingNo(row.trackingNo);
+                const existingShipment: Shipment | null = await firestore.shipments.findByTrackingNo(row.trackingNo);
 
                 // Customer Handling
                 // If existing, we can keep existing customer if row.customerCode is missing?
@@ -286,7 +286,7 @@ export async function PATCH(req: Request) {
         }
 
         const activeRateCard = await firestore.rateCards.findActive();
-        let activeRateCardWithRows = null;
+        let activeRateCardWithRows: RateCard | null = null;
         if (activeRateCard) {
             activeRateCardWithRows = await firestore.rateCards.findById(activeRateCard.id, true);
         }
