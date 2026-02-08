@@ -1,5 +1,42 @@
 {
-  "users": [],
+  "users": [
+    {
+      "id": "p0vpten4fm",
+      "email": "admin@commission.com",
+      "name": "Administrator",
+      "role": "ADMIN",
+      "password": "$2b$10$GnKXZOXAhusmJoHqXRaDQuHB10WTUq2ZoC7viyPKHkKWGBCPEGnBa",
+      "createdAt": "2026-02-07T18:38:25.700Z",
+      "updatedAt": "2026-02-07T18:38:25.700Z"
+    },
+    {
+      "id": "kyprd1dfmb",
+      "email": "manager@commission.com",
+      "name": "ผู้จัดการทั่วไป",
+      "role": "MANAGER",
+      "password": "$2b$10$GnKXZOXAhusmJoHqXRaDQuHB10WTUq2ZoC7viyPKHkKWGBCPEGnBa",
+      "createdAt": "2026-02-07T18:38:25.700Z",
+      "updatedAt": "2026-02-07T18:38:25.700Z"
+    },
+    {
+      "id": "f41g3n4alg7",
+      "email": "staff@commission.com",
+      "name": "พนักงานบันทึกข้อมูล",
+      "role": "STAFF",
+      "password": "$2b$10$GnKXZOXAhusmJoHqXRaDQuHB10WTUq2ZoC7viyPKHkKWGBCPEGnBa",
+      "createdAt": "2026-02-07T18:38:25.700Z",
+      "updatedAt": "2026-02-07T18:38:25.700Z"
+    },
+    {
+      "id": "jm2wzn8n4li",
+      "email": "sale01@commission.com",
+      "name": "สมชาย ขายดี",
+      "role": "SALE",
+      "password": "$2b$10$GnKXZOXAhusmJoHqXRaDQuHB10WTUq2ZoC7viyPKHkKWGBCPEGnBa",
+      "createdAt": "2026-02-07T18:38:25.700Z",
+      "updatedAt": "2026-02-07T18:38:25.700Z"
+    }
+  ],
   "salespersons": [
     {
       "code": "PR-011",

@@ -29,12 +29,12 @@ interface BulkShipmentRow {
 }
 
 export async function POST(req: Request) {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     try {
+        const session = await getServerSession(authOptions);
+        if (!session) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
         const body = await req.json();
         const { rows } = body as { rows: BulkShipmentRow[] };
 
@@ -267,6 +267,7 @@ export async function POST(req: Request) {
             message: `นำเข้าสำเร็จ ${results.success} รายการ, ล้มเหลว ${results.failed} รายการ`,
             results
         });
+
     } catch (error: any) {
         console.error('Bulk import error:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });

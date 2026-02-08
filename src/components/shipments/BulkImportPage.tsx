@@ -253,16 +253,27 @@ export function BulkImportPage() {
                 body: JSON.stringify({ rows: parsedRows })
             });
 
-            const data = await res.json();
+            // Safely read response text first
+            const text = await res.text();
+
+            let data: any;
+            try {
+                data = JSON.parse(text);
+            } catch (e) {
+                // If JSON parse fails, it means server returned HTML error or plain text
+                console.error('Server returned non-JSON:', text);
+                throw new Error(`เกิดข้อผิดพลาดจากเซิร์ฟเวอร์ (Invalid JSON): ${text.substring(0, 100)}...`);
+            }
 
             if (!res.ok) {
-                setError(data.error || 'เกิดข้อผิดพลาด');
+                setError(data.error || 'เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ');
                 return;
             }
 
             setResult(data.results);
         } catch (err: any) {
-            setError(err.message);
+            console.error('Import error:', err);
+            setError(err.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อ');
         } finally {
             setLoading(false);
         }
@@ -641,15 +652,15 @@ export function BulkImportPage() {
                                                 <td className="px-5 py-3 text-center">
                                                     <div className="flex flex-col items-center gap-1">
                                                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold ${!row.transport ? 'bg-slate-100 text-slate-400' :
-                                                                row.transport === 'TRUCK' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'
+                                                            row.transport === 'TRUCK' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'
                                                             }`}>
                                                             {!row.transport ? '-' : row.transport === 'TRUCK' ? 'รถ' : 'เรือ'}
                                                         </span>
                                                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold ${!row.productType ? 'bg-slate-100 text-slate-400' :
-                                                                row.productType === 'SPECIAL' ? 'bg-purple-100 text-purple-700' :
-                                                                    row.productType === 'TISI' ? 'bg-cyan-100 text-cyan-700' :
-                                                                        row.productType === 'FDA' ? 'bg-emerald-100 text-emerald-700' :
-                                                                            'bg-slate-100 text-slate-600'
+                                                            row.productType === 'SPECIAL' ? 'bg-purple-100 text-purple-700' :
+                                                                row.productType === 'TISI' ? 'bg-cyan-100 text-cyan-700' :
+                                                                    row.productType === 'FDA' ? 'bg-emerald-100 text-emerald-700' :
+                                                                        'bg-slate-100 text-slate-600'
                                                             }`}>
                                                             {row.productType ? productTypeLabel(row.productType) : '-'}
                                                         </span>

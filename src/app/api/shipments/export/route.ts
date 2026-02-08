@@ -14,44 +14,55 @@ export async function GET(req: Request) {
         // Get all shipments with relations
         const shipments = await firestore.shipments.findAll();
 
-        // Get all customers and salespersons for lookup
+        // Get all customers for lookup
         const customers = await firestore.customers.findAll();
-        const salespersons = await firestore.salespersons.findAll();
 
         const customerMap: Map<string, any> = new Map(customers.map((c: any) => [c.id, c]));
-        const salespersonMap: Map<string, any> = new Map(salespersons.map((s: any) => [s.id, s]));
 
-        // Transform data for Excel (Matching Bulk Import Format)
+        // Helper for translation
+        const PRODUCT_TYPE_LABELS: Record<string, string> = {
+            GENERAL: 'ทั่วไป',
+            TISI: 'มอก',
+            FDA: 'อย',
+            SPECIAL: 'พิเศษ',
+        };
+
+        const SHIPMENT_STATUS_LABELS: Record<string, string> = {
+            PENDING: 'รอดำเนินการ',
+            IN_TRANSIT: 'กำลังขนส่ง',
+            DELIVERED: 'ส่งแล้ว',
+            CANCELLED: 'ยกเลิก',
+        };
+
+        // Date formatter for Thai style or just YYYY-MM-DD as requested? User didn't specify format, but usually for export YYYY-MM-DD is safe.
+        // Let's stick to YYYY-MM-DD for consistency with previous code.
+        const formatDate = (date: Date | undefined) => {
+            if (!date) return '';
+            const d = new Date(date);
+            if (isNaN(d.getTime())) return '';
+            return d.toISOString().split('T')[0];
+        };
+
+        // Transform data for Excel
         const excelData = shipments.map((s: any) => {
             const customer = s.customerId ? customerMap.get(s.customerId) : null;
 
-            // Date formatter for Import standard (YYYY-MM-DD)
-            const formatDate = (date: Date | undefined) => {
-                if (!date) return '';
-                const d = new Date(date);
-                if (isNaN(d.getTime())) return '';
-                return d.toISOString().split('T')[0];
-            };
-
             return {
-                trackingNo: s.trackingNo || '',
-                customerCode: customer?.code || '',
-                poNo: s.poNo || '',
-                lotNo: s.lotNo || '',
-                productType: s.productType, // GENERAL, TISI, etc.
-                transport: s.transport,     // TRUCK, SHIP
-                dateIn: formatDate(s.dateIn),
-                dateOut: formatDate(s.dateOut),
-                dateArrived: formatDate(s.dateArrived),
-                status: s.status,           // PENDING, ARRIVED, etc.
-                weightKg: s.weightKg || 0,
-                cbm: s.cbm || 0,
-                sellBase: s.sellBase || 0,
-                sellUnit: s.sellUnit || 'CBM',
-                quantity: s.quantity || 1,
-                dimensions: s.dimensions || '',
-                note: s.note || '',
-                profit: s.commissionValue || 0 // Column R
+                'เลขพัสดุ': s.trackingNo || '',
+                'เลข PO': s.poNo || '',
+                'ล๊อต': s.lotNo || '',
+                'ผู้ใช้งาน': customer?.code || '',
+                'ราคา': s.sellBase || 0,
+                'ประเภทสินค้า': PRODUCT_TYPE_LABELS[s.productType] || s.productType,
+                'เข้าโกดัง': formatDate(s.dateIn),
+                'ออกโกดัง': formatDate(s.dateOut),
+                'ถึงโกดังปลายทาง': formatDate(s.dateArrived),
+                'จำนวน': s.quantity || 0,
+                'KG': s.weightKg || 0,
+                'ขนาด': s.dimensions || '',
+                'CBM': s.cbm || 0,
+                'รูป': s.imageUrl || '',
+                'สถานะ': SHIPMENT_STATUS_LABELS[s.status] || s.status
             };
         });
 
@@ -61,24 +72,21 @@ export async function GET(req: Request) {
 
         // Set column widths
         ws['!cols'] = [
-            { wch: 20 },  // trackingNo
-            { wch: 15 },  // customerCode
-            { wch: 15 },  // poNo
-            { wch: 15 },  // lotNo
-            { wch: 12 },  // productType
-            { wch: 10 },  // transport
-            { wch: 12 },  // dateIn
-            { wch: 12 },  // dateOut
-            { wch: 12 },  // dateArrived
-            { wch: 15 },  // status
-            { wch: 12 },  // weightKg
-            { wch: 12 },  // cbm
-            { wch: 12 },  // sellBase
-            { wch: 8 },   // sellUnit
-            { wch: 8 },   // quantity
-            { wch: 15 },  // dimensions
-            { wch: 25 },  // note
-            { wch: 15 },  // profit (R)
+            { wch: 20 },  // เลขพัสดุ
+            { wch: 15 },  // เลข PO
+            { wch: 15 },  // ล๊อต
+            { wch: 15 },  // ผู้ใช้งาน
+            { wch: 12 },  // ราคา
+            { wch: 12 },  // ประเภทสินค้า
+            { wch: 12 },  // เข้าโกดัง
+            { wch: 12 },  // ออกโกดัง
+            { wch: 15 },  // ถึงโกดังปลายทาง
+            { wch: 10 },  // จำนวน
+            { wch: 10 },  // KG
+            { wch: 15 },  // ขนาด
+            { wch: 10 },  // CBM
+            { wch: 30 },  // รูป
+            { wch: 15 },  // สถานะ
         ];
 
         XLSX.utils.book_append_sheet(wb, ws, 'Shipments');
