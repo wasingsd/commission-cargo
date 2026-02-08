@@ -189,9 +189,9 @@ const realFirestore = {
         async findAll(): Promise<User[]> {
             const snapshot = await getDb()
                 .collection(Collections.USERS)
-                .orderBy('createdAt', 'desc')
                 .get();
-            return snapshot.docs.map((doc) => docToData<User>(doc));
+            const users = snapshot.docs.map((doc) => docToData<User>(doc));
+            return users.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
         },
 
         async findById(id: string): Promise<User | null> {
@@ -246,9 +246,9 @@ const realFirestore = {
         async findAll(): Promise<Salesperson[]> {
             const snapshot = await getDb()
                 .collection(Collections.SALESPERSONS)
-                .orderBy('createdAt', 'desc')
                 .get();
-            return snapshot.docs.map((doc) => docToData<Salesperson>(doc));
+            const results = snapshot.docs.map((doc) => docToData<Salesperson>(doc));
+            return results.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
         },
 
         async findById(id: string): Promise<Salesperson | null> {
@@ -322,7 +322,7 @@ const realFirestore = {
             const snapshot = await getDb()
                 .collection(Collections.SHIPMENTS)
                 .where('salespersonId', '==', id)
-                .where('isConfirmed', '!=', false) // Exclude explicilty false
+                .where('isConfirmed', '==', true)
                 .count()
                 .get();
             return snapshot.data().count;
@@ -336,9 +336,9 @@ const realFirestore = {
         async findAll(): Promise<Customer[]> {
             const snapshot = await getDb()
                 .collection(Collections.CUSTOMERS)
-                .orderBy('createdAt', 'desc')
                 .get();
-            return snapshot.docs.map((doc) => docToData<Customer>(doc));
+            const customers = snapshot.docs.map((doc) => docToData<Customer>(doc));
+            return customers.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
         },
 
         async findById(id: string): Promise<Customer | null> {
@@ -405,9 +405,9 @@ const realFirestore = {
         async findAll(): Promise<RateCard[]> {
             const snapshot = await getDb()
                 .collection(Collections.RATE_CARDS)
-                .orderBy('createdAt', 'desc')
                 .get();
-            return snapshot.docs.map((doc) => docToData<RateCard>(doc));
+            const cards = snapshot.docs.map((doc) => docToData<RateCard>(doc));
+            return cards.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
         },
 
         async findById(id: string, includeRows = false): Promise<RateCard | null> {
