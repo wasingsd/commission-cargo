@@ -588,19 +588,32 @@ const realFirestore = {
             if (filters?.endDate) {
                 query = query.where('dateIn', '<=', filters.endDate);
             }
-            if (filters?.isConfirmed !== undefined) {
-                query = query.where('isConfirmed', '==', filters.isConfirmed);
-            }
 
-            // If date filtering is active, order by dateIn to avoid index issues
-            if (filters?.startDate || filters?.endDate) {
-                query = query.orderBy('dateIn', 'desc');
-            } else {
-                query = query.orderBy('createdAt', 'desc');
+            // To avoid composite index requirements for simple combined queries,
+            // we'll handle isConfirmed filtering in memory if it's "false" (pending)
+            // but we can keep it in Firestore if it's "true" (confirmed) as it's a common state.
+            // Actually, for maximum resilience against missing indexes and missing fields, 
+            // let's fetch more and filter in JS if needed, or keep only simple equality in Firestore.
+
+            if (filters?.isConfirmed === true) {
+                query = query.where('isConfirmed', '==', true);
             }
 
             const snapshot = await query.get();
-            return snapshot.docs.map((doc) => docToData<Shipment>(doc));
+            let results = snapshot.docs.map((doc) => docToData<Shipment>(doc));
+
+            // JS-side filtering for isConfirmed == false (to include items where field is missing)
+            if (filters?.isConfirmed === false) {
+                results = results.filter(s => s.isConfirmed === false || s.isConfirmed === undefined);
+            }
+
+            // JS-side sorting to avoid composite index requirement
+            const sortField = (filters?.startDate || filters?.endDate) ? 'dateIn' : 'createdAt';
+            return results.sort((a, b) => {
+                const dateA = (a[sortField] instanceof Date ? a[sortField] : new Date(a[sortField] || 0)) as Date;
+                const dateB = (b[sortField] instanceof Date ? b[sortField] : new Date(b[sortField] || 0)) as Date;
+                return dateB.getTime() - dateA.getTime();
+            });
         },
 
         async findById(id: string): Promise<Shipment | null> {

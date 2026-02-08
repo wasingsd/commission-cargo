@@ -224,7 +224,8 @@ export const mockFirestore = {
                     if (!d || d > new Date(filters.endDate)) return false;
                 }
                 if (filters?.isConfirmed !== undefined) {
-                    if (s.isConfirmed !== filters.isConfirmed) return false;
+                    const isConfirmed = s.isConfirmed === true; // Treat undefined as false
+                    if (isConfirmed !== filters.isConfirmed) return false;
                 }
                 return true;
             });
