@@ -48,6 +48,7 @@ interface Shipment {
     commissionMethod: string;
     customer?: { code: string; name: string } | null;
     salesperson?: { code: string; name: string } | null;
+    isConfirmed?: boolean;
 }
 
 export function ShipmentList() {
@@ -64,6 +65,8 @@ export function ShipmentList() {
         startDate: '',
         endDate: ''
     });
+
+    const [activeTab, setActiveTab] = useState<'CONFIRMED' | 'PENDING'>('CONFIRMED');
 
     // Pagination State
     const [page, setPage] = useState(1);
@@ -247,6 +250,38 @@ export function ShipmentList() {
         });
     };
 
+    const handleBulkConfirm = async () => {
+        setConfirmConfig({
+            isOpen: true,
+            title: 'ยืนยันรายการนำเข้า',
+            message: `ยืนยันการนำเข้า ${selectedIds.length} รายการสู่ระบบ?\nรายการที่ยืนยันแล้วจะถูกนำไปคำนวณในหน้าแดชบอร์ด`,
+            onConfirm: async () => {
+                setConfirmConfig(prev => ({ ...prev, isOpen: false }));
+                setIsBulkEditing(true);
+                try {
+                    const res = await fetch('/api/shipments/bulk', {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ids: selectedIds, data: { isConfirmed: true } })
+                    });
+
+                    if (res.ok) {
+                        setSelectedIds([]);
+                        fetchShipments();
+                    } else {
+                        const json = await res.json();
+                        alert(`ยืนยันไม่สำเร็จ: ${json.error}`);
+                    }
+                } catch (error) {
+                    console.error('Error bulk confirming:', error);
+                } finally {
+                    setIsBulkEditing(false);
+                }
+            }
+        });
+    };
+
+
     const [isRecalculating, setIsRecalculating] = useState(false);
 
     // Inline Price Edit State
@@ -354,6 +389,11 @@ export function ShipmentList() {
             if (filters.status) params.append('status', filters.status);
             if (filters.startDate) params.append('startDate', filters.startDate);
             if (filters.endDate) params.append('endDate', filters.endDate);
+
+            // Tab filtering
+            if (activeTab === 'CONFIRMED') params.append('isConfirmed', 'true');
+            if (activeTab === 'PENDING') params.append('isConfirmed', 'false');
+
             params.append('page', page.toString());
             params.append('limit', pageSize.toString());
 
@@ -372,11 +412,11 @@ export function ShipmentList() {
 
     useEffect(() => {
         setPage(1); // Reset to first page on filter change
-    }, [filters, pageSize]);
+    }, [filters, pageSize, activeTab]);
 
     useEffect(() => {
         fetchShipments();
-    }, [filters, page, pageSize]);
+    }, [filters, page, pageSize, activeTab]);
 
     const getItemStatus = (item: Shipment) => {
         if (item.costFinal > item.sellBase) return 'LOSS';
@@ -472,6 +512,30 @@ export function ShipmentList() {
                         ส่งออก Excel
                     </button>
                 </div>
+            </div>
+
+            {/* Tabs */}
+            <div className="flex items-center gap-1 bg-slate-100/50 p-1 rounded-xl w-fit border border-slate-200/50">
+                <button
+                    onClick={() => setActiveTab('CONFIRMED')}
+                    className={`px-5 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'CONFIRMED'
+                        ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200'
+                        : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
+                        }`}
+                >
+                    รายการที่ยืนยันแล้ว
+                </button>
+                <div className="w-px h-5 bg-slate-300/50 mx-1" />
+                <button
+                    onClick={() => setActiveTab('PENDING')}
+                    className={`px-5 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${activeTab === 'PENDING'
+                        ? 'bg-white text-amber-600 shadow-sm ring-1 ring-amber-100'
+                        : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
+                        }`}
+                >
+                    <div className={`w-2 h-2 rounded-full ${activeTab === 'PENDING' ? 'bg-amber-500' : 'bg-slate-300'}`} />
+                    รออนุมัติ
+                </button>
             </div>
 
             {/* Filter Shelf */}
@@ -576,7 +640,7 @@ export function ShipmentList() {
                                 </tr>
                             ) : (
                                 shipments.map((item) => (
-                                    <tr key={item.id} className={`hover:bg-slate-50/50 transition-colors group ${selectedIds.includes(item.id) ? 'bg-accent-50/30' : ''}`}>
+                                    <tr key={item.id} className={`transition-colors group ${selectedIds.includes(item.id) ? 'bg-accent-50/30' : (item.isConfirmed === false ? 'bg-amber-50/30 hover:bg-amber-100/30' : 'hover:bg-slate-50/50')}`}>
                                         <td className="px-6 py-6">
                                             <input
                                                 type="checkbox"
@@ -598,7 +662,14 @@ export function ShipmentList() {
                                                 <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-white group-hover:shadow-sm transition-all">
                                                     <Package className="w-4 h-4" />
                                                 </div>
-                                                <span className="text-sm font-bold text-slate-900 tracking-tight">{item.trackingNo}</span>
+                                                <div className="flex flex-col">
+                                                    <span className="text-sm font-bold text-slate-900 tracking-tight">{item.trackingNo}</span>
+                                                    {item.isConfirmed === false && (
+                                                        <span className="inline-flex max-w-fit items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 mt-0.5">
+                                                            รออนุมัติ
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
                                         </td>
                                         <td className="px-6 py-6">
@@ -807,6 +878,20 @@ export function ShipmentList() {
                     </div>
 
                     <div className="flex items-center gap-2">
+                        {activeTab === 'PENDING' && (
+                            <>
+                                <button
+                                    onClick={handleBulkConfirm}
+                                    disabled={isBulkEditing}
+                                    className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-lg shadow-green-900/20 active:scale-95 disabled:opacity-50 flex items-center gap-2"
+                                >
+                                    <CheckCircle2 className="w-4 h-4" />
+                                    ยืนยัน ({selectedIds.length})
+                                </button>
+                                <div className="w-px h-6 bg-slate-700 mx-2" />
+                            </>
+                        )}
+
                         <div className="flex bg-slate-800 p-1 rounded-xl gap-1">
                             <button
                                 onClick={() => handleBulkEditTransport('TRUCK')}

@@ -33,7 +33,8 @@ export async function GET(request: NextRequest) {
         if (endDateStr) filters.endDate = new Date(endDateStr);
 
         // Get all shipments matching the filter
-        const shipments: Shipment[] = await firestore.shipments.findAll(filters);
+        const allShipments: Shipment[] = await firestore.shipments.findAll(filters);
+        const shipments = allShipments.filter(s => s.isConfirmed !== false);
 
         // Populate relations
         const shipmentsWithRelations = await Promise.all(

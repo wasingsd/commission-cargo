@@ -149,6 +149,7 @@ export interface Shipment {
     createdBy?: User;
     createdAt: Date;
     updatedAt: Date;
+    isConfirmed?: boolean;
 }
 
 export interface AuditLog {

@@ -149,7 +149,7 @@ export const mockFirestore = {
             return customers.length;
         },
         async countShipments(id: string) {
-            const shipments = await db.find<Shipment>(Collections.SHIPMENTS, s => s.salespersonId === id);
+            const shipments = await db.find<Shipment>(Collections.SHIPMENTS, s => s.salespersonId === id && s.isConfirmed !== false);
             return shipments.length;
         },
     },
@@ -222,6 +222,9 @@ export const mockFirestore = {
                 if (filters?.endDate) {
                     const d = s.dateIn ? new Date(s.dateIn) : null;
                     if (!d || d > new Date(filters.endDate)) return false;
+                }
+                if (filters?.isConfirmed !== undefined) {
+                    if (s.isConfirmed !== filters.isConfirmed) return false;
                 }
                 return true;
             });

@@ -227,13 +227,8 @@ export async function POST(req: Request) {
                     commissionMethod: commResult.commissionMethod,
                     commissionValue: commResult.commissionValue,
                     status: finalStatus as any,
-                    note: row.note || existingShipment?.note, // If row.note is empty string, it overwrites? If row.note is undefined (not in JSON), keep existing. 
-                    // Note: ParsedRow (frontend) sets note: '' by default. If we want to support 'keep note', we need frontend change or assume '' means 'keep' (dangerous if user wants to clear). 
-                    // Given the constraint "Overwrite data only for columns WHO HAVE DATA", empty string IS data (clearing). undefined is NO data.
-                    // Frontend 'note' is currently always empty string if not provided. This might be fine for now, or use || existing. 
-                    // User said "Column with no information", which usually means "Cell is empty".
-                    // If cell is empty, frontend sends empty string for note.
-                    // If we treat empty string as "no info", then `|| existing`.
+                    note: row.note || existingShipment?.note,
+                    isConfirmed: false,
                 };
 
                 if (existingShipment) {

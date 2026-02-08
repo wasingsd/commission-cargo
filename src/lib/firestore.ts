@@ -115,6 +115,7 @@ export interface Shipment {
     note?: string;
     createdAt: Date;
     updatedAt: Date;
+    isConfirmed?: boolean;
     // Virtual fields for populated data
     customer?: Customer;
     salesperson?: Salesperson;
@@ -321,6 +322,7 @@ const realFirestore = {
             const snapshot = await getDb()
                 .collection(Collections.SHIPMENTS)
                 .where('salespersonId', '==', id)
+                .where('isConfirmed', '!=', false) // Exclude explicilty false
                 .count()
                 .get();
             return snapshot.data().count;
@@ -567,6 +569,7 @@ const realFirestore = {
             salespersonId?: string;
             startDate?: Date;
             endDate?: Date;
+            isConfirmed?: boolean;
         }): Promise<Shipment[]> {
             let query: Query = getDb().collection(Collections.SHIPMENTS);
 
@@ -584,6 +587,9 @@ const realFirestore = {
             }
             if (filters?.endDate) {
                 query = query.where('dateIn', '<=', filters.endDate);
+            }
+            if (filters?.isConfirmed !== undefined) {
+                query = query.where('isConfirmed', '==', filters.isConfirmed);
             }
 
             // If date filtering is active, order by dateIn to avoid index issues

@@ -145,6 +145,7 @@ export async function POST(req: Request) {
             commissionMethod: commResult.commissionMethod as any,
             commissionValue: commResult.commissionValue,
             note: body.note || undefined,
+            isConfirmed: false,
         });
 
         // Log Activity
@@ -178,6 +179,7 @@ export async function GET(req: Request) {
     const search = searchParams.get('search');
     const startDateStr = searchParams.get('startDate');
     const endDateStr = searchParams.get('endDate');
+    const isConfirmedStr = searchParams.get('isConfirmed');
 
     // Pagination params
     const page = parseInt(searchParams.get('page') || '1');
@@ -190,6 +192,7 @@ export async function GET(req: Request) {
         status?: string;
         startDate?: Date;
         endDate?: Date;
+        isConfirmed?: boolean;
     } = {};
 
     if (month) filters.monthKey = month;
@@ -198,6 +201,8 @@ export async function GET(req: Request) {
     if (status) filters.status = status;
     if (startDateStr) filters.startDate = new Date(startDateStr);
     if (endDateStr) filters.endDate = new Date(endDateStr);
+    if (isConfirmedStr === 'true') filters.isConfirmed = true;
+    if (isConfirmedStr === 'false') filters.isConfirmed = false;
 
     // Role-based filtering
     if (session.user.role === Role.SALE) {

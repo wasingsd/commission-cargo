@@ -30,6 +30,9 @@ export async function GET() {
         const customerCache = new Map<string, string>();
 
         for (const s of shipments) {
+            // Filter unconfirmed shipments (treat undefined as true/legacy)
+            if (s.isConfirmed === false) continue;
+
             const comm = Number(s.commissionValue || 0);
             const sell = Number(s.sellBase || 0);
             const cost = Number(s.costFinal || 0);
