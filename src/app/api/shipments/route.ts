@@ -199,8 +199,16 @@ export async function GET(req: Request) {
     if (customerId) filters.customerId = customerId;
     if (salesId) filters.salespersonId = salesId;
     if (status) filters.status = status;
-    if (startDateStr) filters.startDate = new Date(startDateStr);
-    if (endDateStr) filters.endDate = new Date(endDateStr);
+    if (startDateStr) {
+        const d = new Date(startDateStr);
+        d.setHours(0, 0, 0, 0);
+        filters.startDate = d;
+    }
+    if (endDateStr) {
+        const d = new Date(endDateStr);
+        d.setHours(23, 59, 59, 999);
+        filters.endDate = d;
+    }
     if (isConfirmedStr === 'true') filters.isConfirmed = true;
     if (isConfirmedStr === 'false') filters.isConfirmed = false;
 

@@ -590,9 +590,24 @@ export function ShipmentList() {
                             className="bg-transparent border-slate-200 text-xs font-medium focus:ring-0 outline-none w-28"
                         />
                     </div>
-                    <button className="p-3 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all">
-                        <Filter className="w-5 h-5" />
-                    </button>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => setFilters({
+                                search: '',
+                                month: '',
+                                status: '',
+                                startDate: '',
+                                endDate: ''
+                            })}
+                            className="p-3 bg-slate-100 text-slate-500 rounded-xl hover:bg-slate-200 hover:text-slate-700 transition-all flex items-center gap-2"
+                            title="ล้างตัวกรอง"
+                        >
+                            <RotateCw className="w-5 h-5" />
+                        </button>
+                        <button className="p-3 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all">
+                            <Filter className="w-5 h-5" />
+                        </button>
+                    </div>
                 </div>
             </div>
 
